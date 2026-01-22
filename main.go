@@ -16,6 +16,7 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/huh/spinner"
+	"github.com/charmbracelet/lipgloss"
 )
 
 const (
@@ -48,15 +49,27 @@ type GenerationConfig struct {
 	ImageConfig        ImageConfig `json:"imageConfig"`
 }
 
+type GoogleSearch struct{}
+
+type Tool struct {
+	GoogleSearch *GoogleSearch `json:"googleSearch,omitempty"`
+}
+
 type GeminiRequest struct {
 	Contents         []Content        `json:"contents"`
 	GenerationConfig GenerationConfig `json:"generationConfig"`
+	Tools            []Tool           `json:"tools,omitempty"`
 }
 
 // Response structures
+type ResponseInlineData struct {
+	MimeType string `json:"mimeType"`
+	Data     string `json:"data"`
+}
+
 type ResponsePart struct {
-	Text       string      `json:"text,omitempty"`
-	InlineData *InlineData `json:"inlineData,omitempty"`
+	Text       string              `json:"text,omitempty"`
+	InlineData *ResponseInlineData `json:"inlineData,omitempty"`
 }
 
 type ResponseContent struct {
@@ -80,6 +93,7 @@ type Config struct {
 	APIKey      string
 	AspectRatio string
 	ImageSize   string
+	Grounding   bool
 }
 
 func main() {
@@ -98,6 +112,9 @@ func main() {
 
 	config, err := runForm(apiKey)
 	if err != nil {
+		if err == huh.ErrUserAborted {
+			os.Exit(0)
+		}
 		fmt.Printf("\n❌ Error: %v\n", err)
 		os.Exit(1)
 	}
@@ -202,6 +219,16 @@ type GenerationResult struct {
 	Error     error
 }
 
+func customTheme() *huh.Theme {
+	t := huh.ThemeDracula()
+	yellow := lipgloss.Color("#FFFF00")
+
+	t.Focused.TextInput.Text = lipgloss.NewStyle().Foreground(yellow)
+	t.Blurred.TextInput.Text = lipgloss.NewStyle().Foreground(yellow)
+
+	return t
+}
+
 func printBanner() {
 	banner := `
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -213,16 +240,17 @@ func printBanner() {
 }
 
 func runForm(apiKey string) (*Config, error) {
+	// Default prompt - pre-filled for editing
+	defaultPrompt := "A 2D vector art pattern in the style of the reference image/s not a copy of it not an immitation not an edit of it rather, a pattern inspired by the shapes in reference image/s you can get creative with colors and avoid extremely bold outlines"
+
 	var (
 		folderPath  string
 		numImages   string
-		prompt      string
+		prompt      = defaultPrompt
 		aspectRatio string
 		imageSize   string
+		grounding   = true
 	)
-
-	// Default prompt
-	defaultPrompt := "A pattern in the style of the reference image not a copy of it not an imitation not an edit of it rather a pattern inspired by the reference image"
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -230,7 +258,18 @@ func runForm(apiKey string) (*Config, error) {
 				Title("Folder Path").
 				Description("Parent folder containing refs/ and output/ directories").
 				Placeholder("./input/01").
-				Value(&folderPath),
+				Value(&folderPath).
+				Validate(func(s string) error {
+					path := s
+					if path == "" {
+						path = "./input/01"
+					}
+					refsPath := filepath.Join(path, "refs")
+					if _, err := os.Stat(refsPath); os.IsNotExist(err) {
+						return fmt.Errorf("refs/ folder not found in %s", path)
+					}
+					return nil
+				}),
 
 			huh.NewInput().
 				Title("Number of Images").
@@ -250,8 +289,7 @@ func runForm(apiKey string) (*Config, error) {
 
 			huh.NewText().
 				Title("Prompt").
-				Description("The generation prompt").
-				Placeholder(defaultPrompt).
+				Description("The generation prompt (Ctrl+U to clear)").
 				Value(&prompt).
 				Lines(3),
 
@@ -274,8 +312,15 @@ func runForm(apiKey string) (*Config, error) {
 					huh.NewOption("4K", "4K"),
 				).
 				Value(&imageSize),
+
+			huh.NewConfirm().
+				Title("Grounding").
+				Description("Enable Google Search grounding").
+				Affirmative("Enabled").
+				Negative("Disabled").
+				Value(&grounding),
 		),
-	).WithTheme(huh.ThemeDracula())
+	).WithTheme(customTheme())
 
 	err := form.Run()
 	if err != nil {
@@ -308,6 +353,7 @@ func runForm(apiKey string) (*Config, error) {
 		APIKey:      apiKey,
 		AspectRatio: aspectRatio,
 		ImageSize:   imageSize,
+		Grounding:   grounding,
 	}, nil
 }
 
@@ -388,6 +434,10 @@ func generateImage(config *Config, refImages []Part, index int) GenerationResult
 		},
 	}
 
+	if config.Grounding {
+		request.Tools = []Tool{{GoogleSearch: &GoogleSearch{}}}
+	}
+
 	jsonData, err := json.Marshal(request)
 	if err != nil {
 		return GenerationResult{Index: index, Error: fmt.Errorf("failed to marshal request: %v", err)}
@@ -431,5 +481,18 @@ func generateImage(config *Config, refImages []Part, index int) GenerationResult
 		}
 	}
 
-	return GenerationResult{Index: index, Error: fmt.Errorf("no image in response")}
+	// No image found - check if there's text explaining why
+	var textResponse string
+	for _, candidate := range geminiResp.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.Text != "" {
+				textResponse = part.Text
+			}
+		}
+	}
+	if textResponse != "" {
+		return GenerationResult{Index: index, Error: fmt.Errorf("no image in response. API said: %s", textResponse)}
+	}
+
+	return GenerationResult{Index: index, Error: fmt.Errorf("no image in response (raw: %s)", string(body))}
 }
