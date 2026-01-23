@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"nano_banana_pro/api"
+	"github.com/AhmedAburady/banana-cli/api"
 )
 
 // Options holds CLI configuration

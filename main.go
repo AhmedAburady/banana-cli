@@ -9,10 +9,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"nano_banana_pro/api"
-	"nano_banana_pro/cli"
-	"nano_banana_pro/ui"
-	"nano_banana_pro/views"
+	"github.com/AhmedAburady/banana-cli/api"
+	"github.com/AhmedAburady/banana-cli/cli"
+	"github.com/AhmedAburady/banana-cli/ui"
+	"github.com/AhmedAburady/banana-cli/views"
 )
 
 // ViewState represents the current view

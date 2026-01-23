@@ -1,4 +1,4 @@
-module nano_banana_pro
+module github.com/AhmedAburady/banana-cli
 
 go 1.25.6
 

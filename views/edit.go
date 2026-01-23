@@ -4,7 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"nano_banana_pro/ui"
+	"github.com/AhmedAburady/banana-cli/ui"
 )
 
 // EditSubmitMsg is emitted when the edit form is submitted

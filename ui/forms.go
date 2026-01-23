@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"nano_banana_pro/api"
+	"github.com/AhmedAburady/banana-cli/api"
 )
 
 // Internal colors for form styling

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"nano_banana_pro/api"
+	"github.com/AhmedAburady/banana-cli/api"
 )
 
 // ValidationError represents a validation error

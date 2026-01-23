@@ -4,7 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"nano_banana_pro/ui"
+	"github.com/AhmedAburady/banana-cli/ui"
 )
 
 // GenerateSubmitMsg is emitted when the generate form is submitted
