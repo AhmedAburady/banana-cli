@@ -60,7 +60,7 @@ mv banana-darwin-arm64 /usr/local/bin/banana
 ### Using Go
 
 ```bash
-go install github.com/AhmedAburady/banana-cli@latest
+go install github.com/AhmedAburady/banana-cli/cmd/banana@latest
 ```
 
 ### From Source
@@ -68,7 +68,7 @@ go install github.com/AhmedAburady/banana-cli@latest
 ```bash
 git clone https://github.com/AhmedAburady/banana-cli.git
 cd banana-cli
-go build -o banana .
+go build -o banana ./cmd/banana
 ```
 
 ---
