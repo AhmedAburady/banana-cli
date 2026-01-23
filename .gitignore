@@ -33,3 +33,6 @@ Thumbs.db
 # Output folders
 output/
 input/
+
+generations/
+.claude/

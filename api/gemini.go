@@ -1,0 +1,314 @@
+package api
+
+import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+const (
+	GeminiURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent"
+)
+
+// Gemini API structures
+type InlineData struct {
+	MimeType string `json:"mime_type"`
+	Data     string `json:"data"`
+}
+
+type Part struct {
+	Text       string      `json:"text,omitempty"`
+	InlineData *InlineData `json:"inline_data,omitempty"`
+}
+
+type Content struct {
+	Parts []Part `json:"parts"`
+}
+
+type ImageConfig struct {
+	AspectRatio string `json:"aspectRatio"`
+	ImageSize   string `json:"imageSize"`
+}
+
+type GenerationConfig struct {
+	ResponseModalities []string    `json:"responseModalities"`
+	ImageConfig        ImageConfig `json:"imageConfig"`
+}
+
+type GoogleSearch struct{}
+
+type Tool struct {
+	GoogleSearch *GoogleSearch `json:"googleSearch,omitempty"`
+}
+
+type GeminiRequest struct {
+	Contents         []Content        `json:"contents"`
+	GenerationConfig GenerationConfig `json:"generationConfig"`
+	Tools            []Tool           `json:"tools,omitempty"`
+}
+
+// Response structures
+type ResponseInlineData struct {
+	MimeType string `json:"mimeType"`
+	Data     string `json:"data"`
+}
+
+type ResponsePart struct {
+	Text       string              `json:"text,omitempty"`
+	InlineData *ResponseInlineData `json:"inlineData,omitempty"`
+}
+
+type ResponseContent struct {
+	Parts []ResponsePart `json:"parts"`
+	Role  string         `json:"role"`
+}
+
+type Candidate struct {
+	Content ResponseContent `json:"content"`
+}
+
+type GeminiResponse struct {
+	Candidates []Candidate  `json:"candidates"`
+	Error      *GeminiError `json:"error,omitempty"`
+}
+
+// GeminiError represents API error response
+type GeminiError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Status  string `json:"status"`
+}
+
+// GenerationResult holds the result of an image generation attempt
+type GenerationResult struct {
+	Index     int
+	ImageData []byte
+	Filename  string
+	Error     error
+}
+
+// Config holds the configuration for image generation
+type Config struct {
+	OutputFolder string
+	NumImages    int
+	Prompt       string
+	APIKey       string
+	AspectRatio  string
+	ImageSize    string
+	Grounding    bool
+	RefImages    []Part
+}
+
+// Supported image extensions and their MIME types
+var supportedExts = map[string]string{
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".png":  "image/png",
+	".gif":  "image/gif",
+	".webp": "image/webp",
+}
+
+// IsSupportedImage checks if a file has a supported image extension
+func IsSupportedImage(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	_, ok := supportedExts[ext]
+	return ok
+}
+
+// LoadReferences loads images from either:
+// - A directory (all images directly in that folder)
+// - A single image file path
+func LoadReferences(path string) ([]Part, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if info.IsDir() {
+		return loadImagesFromDir(path)
+	}
+	return loadSingleImage(path)
+}
+
+// loadImagesFromDir loads all supported images from a directory
+func loadImagesFromDir(dirPath string) ([]Part, error) {
+	var parts []Part
+
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		mimeType, ok := supportedExts[ext]
+		if !ok {
+			continue
+		}
+
+		filePath := filepath.Join(dirPath, entry.Name())
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read %s: %v", entry.Name(), err)
+		}
+
+		encoded := base64.StdEncoding.EncodeToString(data)
+		parts = append(parts, Part{
+			InlineData: &InlineData{
+				MimeType: mimeType,
+				Data:     encoded,
+			},
+		})
+	}
+
+	return parts, nil
+}
+
+// loadSingleImage loads a single image file
+func loadSingleImage(filePath string) ([]Part, error) {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	mimeType, ok := supportedExts[ext]
+	if !ok {
+		return nil, fmt.Errorf("unsupported image format: %s", ext)
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image: %v", err)
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(data)
+	return []Part{{
+		InlineData: &InlineData{
+			MimeType: mimeType,
+			Data:     encoded,
+		},
+	}}, nil
+}
+
+// FindImagesInDir returns the count of images in a directory
+func FindImagesInDir(dirPath string) (int, error) {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return 0, err
+	}
+
+	count := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if _, ok := supportedExts[ext]; ok {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// GenerateImage performs a single image generation request
+func GenerateImage(config *Config, index int) GenerationResult {
+	// Build request parts: text prompt only for generate, text + images for edit
+	var parts []Part
+	parts = append(parts, Part{Text: config.Prompt})
+
+	// Only add reference images if they exist (edit mode)
+	if len(config.RefImages) > 0 {
+		parts = append(parts, config.RefImages...)
+	}
+
+	request := GeminiRequest{
+		Contents: []Content{{Parts: parts}},
+		GenerationConfig: GenerationConfig{
+			ResponseModalities: []string{"TEXT", "IMAGE"},
+			ImageConfig: ImageConfig{
+				AspectRatio: config.AspectRatio,
+				ImageSize:   config.ImageSize,
+			},
+		},
+	}
+
+	if config.Grounding {
+		request.Tools = []Tool{{GoogleSearch: &GoogleSearch{}}}
+	}
+
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return GenerationResult{Index: index, Error: fmt.Errorf("failed to marshal request: %v", err)}
+	}
+
+	// Build URL with API key
+	url := fmt.Sprintf("%s?key=%s", GeminiURL, config.APIKey)
+
+	// Make request
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return GenerationResult{Index: index, Error: fmt.Errorf("request failed: %v", err)}
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return GenerationResult{Index: index, Error: fmt.Errorf("failed to read response: %v", err)}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		// Try to parse error response for cleaner message
+		var errResp struct {
+			Error GeminiError `json:"error"`
+		}
+		if err := json.Unmarshal(body, &errResp); err == nil && errResp.Error.Message != "" {
+			msg := errResp.Error.Message
+			// Truncate long messages
+			if len(msg) > 100 {
+				msg = msg[:97] + "..."
+			}
+			return GenerationResult{Index: index, Error: fmt.Errorf("%s", msg)}
+		}
+		return GenerationResult{Index: index, Error: fmt.Errorf("API error (status %d)", resp.StatusCode)}
+	}
+
+	// Parse response
+	var geminiResp GeminiResponse
+	if err := json.Unmarshal(body, &geminiResp); err != nil {
+		return GenerationResult{Index: index, Error: fmt.Errorf("failed to parse response: %v", err)}
+	}
+
+	// Extract image from response
+	for _, candidate := range geminiResp.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.InlineData != nil && strings.HasPrefix(part.InlineData.MimeType, "image/") {
+				imageData, err := base64.StdEncoding.DecodeString(part.InlineData.Data)
+				if err != nil {
+					return GenerationResult{Index: index, Error: fmt.Errorf("failed to decode image: %v", err)}
+				}
+				return GenerationResult{Index: index, ImageData: imageData}
+			}
+		}
+	}
+
+	// No image found - check if there's text explaining why
+	var textResponse string
+	for _, candidate := range geminiResp.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.Text != "" {
+				textResponse = part.Text
+			}
+		}
+	}
+	if textResponse != "" {
+		return GenerationResult{Index: index, Error: fmt.Errorf("no image in response. API said: %s", textResponse)}
+	}
+
+	return GenerationResult{Index: index, Error: fmt.Errorf("no image in response")}
+}
