@@ -15,11 +15,11 @@ type FieldConfig struct {
 	Placeholder string
 	Default     string
 	BoolDefault bool
-	Lines       int           // For textarea
-	DirsOnly    bool          // For path
-	AllowedExts []string      // For path
+	Lines       int            // For textarea
+	DirsOnly    bool           // For path
+	AllowedExts []string       // For path
 	Options     []SelectOption // For select
-	DefaultIdx  int           // For select
+	DefaultIdx  int            // For select
 }
 
 // Common field configs shared between forms

@@ -66,6 +66,9 @@ func ValidateOutputFolder(path string) (string, error) {
 		return ".", nil // default to current directory
 	}
 
+	// Expand tilde to home directory
+	path = api.ExpandTilde(path)
+
 	info, err := os.Stat(path)
 	if err == nil {
 		if !info.IsDir() {
@@ -92,6 +95,9 @@ func ValidateReferencePath(path string) error {
 	if path == "" {
 		return ValidationError{Field: "ref", Message: "Reference path is required"}
 	}
+
+	// Expand tilde to home directory
+	path = api.ExpandTilde(path)
 
 	info, err := os.Stat(path)
 	if os.IsNotExist(err) {

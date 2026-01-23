@@ -6,26 +6,23 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Gradient colors - purplish, pinkish, and lime
+// Gradient colors - purplish, pinkish, yellow, and lime
 var gradientColors = []string{
 	"#FF6B6B", // Coral red
-	"#FF8E53", // Orange
-	"#FEC89A", // Peach
-	"#98D8C8", // Mint
+	"#FACC15", // Yellow
 	"#50fa7b", // Lime green
 	"#7D56F4", // Purple
-	"#A855F7", // Violet
 	"#EC4899", // Pink
 }
 
-// NanoBananaBanner is the block-style ASCII art
+// NanoBananaBanner is the block-style ASCII art for "BANANA CLI"
 var NanoBananaBanner = []string{
-	"███╗   ██╗ █████╗ ███╗   ██╗ ██████╗     ██████╗  █████╗ ███╗   ██╗ █████╗ ███╗   ██╗ █████╗ ",
-	"████╗  ██║██╔══██╗████╗  ██║██╔═══██╗    ██╔══██╗██╔══██╗████╗  ██║██╔══██╗████╗  ██║██╔══██╗",
-	"██╔██╗ ██║███████║██╔██╗ ██║██║   ██║    ██████╔╝███████║██╔██╗ ██║███████║██╔██╗ ██║███████║",
-	"██║╚██╗██║██╔══██║██║╚██╗██║██║   ██║    ██╔══██╗██╔══██║██║╚██╗██║██╔══██║██║╚██╗██║██╔══██║",
-	"██║ ╚████║██║  ██║██║ ╚████║╚██████╔╝    ██████╔╝██║  ██║██║ ╚████║██║  ██║██║ ╚████║██║  ██║",
-	"╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝     ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝",
+	"██████╗  █████╗ ███╗   ██╗ █████╗ ███╗   ██╗ █████╗      ██████╗██╗     ██╗",
+	"██╔══██╗██╔══██╗████╗  ██║██╔══██╗████╗  ██║██╔══██╗    ██╔════╝██║     ██║",
+	"██████╔╝███████║██╔██╗ ██║███████║██╔██╗ ██║███████║    ██║     ██║     ██║",
+	"██╔══██╗██╔══██║██║╚██╗██║██╔══██║██║╚██╗██║██╔══██║    ██║     ██║     ██║",
+	"██████╔╝██║  ██║██║ ╚████║██║  ██║██║ ╚████║██║  ██║    ╚██████╗███████╗██║",
+	"╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝     ╚═════╝╚══════╝╚═╝",
 }
 
 // hexToRGB converts a hex color string to RGB values
@@ -79,6 +76,9 @@ func toHexColor(r, g, b int) string {
 	return string(hex)
 }
 
+// BannerWidth is the visual width of the banner for centering
+const BannerWidth = 75
+
 // RenderGradientBanner renders the banner with a horizontal gradient
 func RenderGradientBanner() string {
 	if len(NanoBananaBanner) == 0 {
@@ -95,9 +95,10 @@ func RenderGradientBanner() string {
 	}
 
 	colors := gradientColors
-	var result strings.Builder
+	var lines []string
 
-	for i, line := range NanoBananaBanner {
+	for _, line := range NanoBananaBanner {
+		var lineBuilder strings.Builder
 		runes := []rune(line)
 		for j, r := range runes {
 			// Calculate position in gradient (0.0 to 1.0)
@@ -118,14 +119,12 @@ func RenderGradientBanner() string {
 
 			// Apply color to character
 			style := lipgloss.NewStyle().Foreground(lipgloss.Color(colorHex))
-			result.WriteString(style.Render(string(r)))
+			lineBuilder.WriteString(style.Render(string(r)))
 		}
-		if i < len(NanoBananaBanner)-1 {
-			result.WriteString("\n")
-		}
+		lines = append(lines, lineBuilder.String())
 	}
 
-	return result.String()
+	return lipgloss.JoinVertical(lipgloss.Center, lines...)
 }
 
 // RenderSubtitle renders the subtitle text

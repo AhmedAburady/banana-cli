@@ -10,6 +10,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"nano_banana_pro/api"
 )
 
 // Internal colors for form styling
@@ -393,7 +395,7 @@ func (f *Form) View() string {
 		isFocused := i == f.FocusIndex
 
 		// Label
-		label := field.Label
+		var label string
 		if isFocused {
 			label = focusedStyle.Render("▸ " + field.Label)
 		} else {
@@ -507,15 +509,19 @@ func (f *Form) Reset() {
 func computePathSuggestions(input string, dirsOnly bool, allowedExts []string) []string {
 	var dir, prefix string
 
+	// Handle tilde expansion for reading directory
+	expandedInput := api.ExpandTilde(input)
+	hasTilde := strings.HasPrefix(input, "~")
+
 	if input == "" {
 		dir = "."
 		prefix = ""
-	} else if strings.HasSuffix(input, "/") {
-		dir = input
+	} else if strings.HasSuffix(expandedInput, "/") {
+		dir = expandedInput
 		prefix = ""
 	} else {
-		dir = filepath.Dir(input)
-		prefix = filepath.Base(input)
+		dir = filepath.Dir(expandedInput)
+		prefix = filepath.Base(expandedInput)
 	}
 
 	entries, err := os.ReadDir(dir)
@@ -542,10 +548,10 @@ func computePathSuggestions(input string, dirsOnly bool, allowedExts []string) [
 		if entry.IsDir() {
 			if dir == "." {
 				suggestion = name + "/"
-			} else if strings.HasSuffix(input, "/") {
-				suggestion = input + name + "/"
+			} else if strings.HasSuffix(expandedInput, "/") {
+				suggestion = expandedInput + name + "/"
 			} else {
-				suggestion = filepath.Dir(input) + "/" + name + "/"
+				suggestion = filepath.Dir(expandedInput) + "/" + name + "/"
 			}
 		} else {
 			// Skip files if dirsOnly
@@ -561,11 +567,16 @@ func computePathSuggestions(input string, dirsOnly bool, allowedExts []string) [
 			}
 			if dir == "." {
 				suggestion = name
-			} else if strings.HasSuffix(input, "/") {
-				suggestion = input + name
+			} else if strings.HasSuffix(expandedInput, "/") {
+				suggestion = expandedInput + name
 			} else {
-				suggestion = filepath.Dir(input) + "/" + name
+				suggestion = filepath.Dir(expandedInput) + "/" + name
 			}
+		}
+
+		// Convert back to tilde format if input used tilde
+		if hasTilde {
+			suggestion = "~" + strings.TrimPrefix(suggestion, api.ExpandTilde("~"))
 		}
 
 		// Only include suggestions that extend the current input

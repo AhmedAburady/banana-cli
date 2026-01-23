@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -12,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"nano_banana_pro/api"
+	"nano_banana_pro/cli"
 	"nano_banana_pro/ui"
 	"nano_banana_pro/views"
 )
@@ -55,9 +54,7 @@ type ProcessingStartMsg struct {
 
 // ProcessingDoneMsg signals completion of image generation
 type ProcessingDoneMsg struct {
-	Results      []api.GenerationResult
-	OutputFolder string
-	Elapsed      time.Duration
+	api.GenerationOutput
 }
 
 // NewModel creates a new application model
@@ -235,7 +232,7 @@ func (m Model) updateProcessingView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(
 			m.spinner.Tick,
 			func() tea.Msg {
-				return runGeneration(start.Config)
+				return ProcessingDoneMsg{api.RunGeneration(start.Config)}
 			},
 		)
 	}
@@ -279,66 +276,6 @@ func (m Model) updateResultsView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// runGeneration performs the actual image generation
-func runGeneration(config *api.Config) tea.Msg {
-	startTime := time.Now()
-
-	// Ensure output folder exists
-	if err := os.MkdirAll(config.OutputFolder, 0755); err != nil {
-		return ProcessingDoneMsg{
-			Results: []api.GenerationResult{{
-				Index: 0,
-				Error: fmt.Errorf("failed to create output folder: %v", err),
-			}},
-			OutputFolder: config.OutputFolder,
-			Elapsed:      time.Since(startTime),
-		}
-	}
-
-	// Generate images in parallel
-	var wg sync.WaitGroup
-	resultsChan := make(chan api.GenerationResult, config.NumImages)
-
-	for i := 0; i < config.NumImages; i++ {
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
-			result := api.GenerateImage(config, index)
-
-			// Save if successful
-			if result.Error == nil && result.ImageData != nil {
-				filename := fmt.Sprintf("generated_%d_%s.png", result.Index+1, time.Now().Format("20060102_150405"))
-				outputFile := filepath.Join(config.OutputFolder, filename)
-				if err := os.WriteFile(outputFile, result.ImageData, 0644); err != nil {
-					result.Error = fmt.Errorf("failed to save: %v", err)
-				} else {
-					result.Filename = filename
-				}
-			}
-
-			resultsChan <- result
-		}(i)
-	}
-
-	// Close channel when all goroutines complete
-	go func() {
-		wg.Wait()
-		close(resultsChan)
-	}()
-
-	// Collect results
-	var results []api.GenerationResult
-	for result := range resultsChan {
-		results = append(results, result)
-	}
-
-	return ProcessingDoneMsg{
-		Results:      results,
-		OutputFolder: config.OutputFolder,
-		Elapsed:      time.Since(startTime),
-	}
-}
-
 // View renders the current view
 func (m Model) View() string {
 	var content string
@@ -363,9 +300,13 @@ func (m Model) renderMenuView() string {
 	banner := ui.RenderGradientBanner()
 	subtitle := ui.RenderSubtitle()
 
+	// Center the banner within a fixed width container
+	bannerStyle := lipgloss.NewStyle().Width(108).Align(lipgloss.Center)
+	centeredBanner := bannerStyle.Render(banner)
+
 	header := lipgloss.JoinVertical(lipgloss.Center,
 		"",
-		banner,
+		centeredBanner,
 		subtitle,
 		"",
 	)
@@ -433,6 +374,15 @@ func (m Model) renderResultsView() string {
 }
 
 func main() {
+	// Parse CLI flags first
+	opts, cliMode := cli.ParseFlags()
+
+	// Show help if requested
+	if opts.Help {
+		cli.PrintHelp()
+		return
+	}
+
 	// Get API key from environment
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
@@ -444,7 +394,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create and run the program
+	// Run CLI mode if prompt is provided
+	if cliMode {
+		cli.Run(opts, apiKey)
+		return
+	}
+
+	// No flags → launch TUI
 	p := tea.NewProgram(NewModel(apiKey), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error running program: %v\n", err)

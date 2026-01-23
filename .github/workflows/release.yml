@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build binaries
+        run: |
+          # Linux
+          GOOS=linux GOARCH=amd64 go build -o banana-linux-amd64 .
+          GOOS=linux GOARCH=arm64 go build -o banana-linux-arm64 .
+
+          # macOS
+          GOOS=darwin GOARCH=amd64 go build -o banana-darwin-amd64 .
+          GOOS=darwin GOARCH=arm64 go build -o banana-darwin-arm64 .
+
+          # Windows
+          GOOS=windows GOARCH=amd64 go build -o banana-windows-amd64.exe .
+          GOOS=windows GOARCH=arm64 go build -o banana-windows-arm64.exe .
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            banana-linux-amd64
+            banana-linux-arm64
+            banana-darwin-amd64
+            banana-darwin-arm64
+            banana-windows-amd64.exe
+            banana-windows-arm64.exe
+          generate_release_notes: true

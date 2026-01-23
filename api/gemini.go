@@ -8,8 +8,11 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -114,6 +117,22 @@ var supportedExts = map[string]string{
 	".webp": "image/webp",
 }
 
+// ExpandTilde expands ~ to the user's home directory
+func ExpandTilde(path string) string {
+	if path == "~" {
+		if usr, err := user.Current(); err == nil {
+			return usr.HomeDir
+		}
+		return path
+	}
+	if strings.HasPrefix(path, "~/") {
+		if usr, err := user.Current(); err == nil {
+			return filepath.Join(usr.HomeDir, path[2:])
+		}
+	}
+	return path
+}
+
 // IsSupportedImage checks if a file has a supported image extension
 func IsSupportedImage(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
@@ -214,6 +233,73 @@ func FindImagesInDir(dirPath string) (int, error) {
 		}
 	}
 	return count, nil
+}
+
+// GenerationOutput holds the complete output of a generation run
+type GenerationOutput struct {
+	Results      []GenerationResult
+	OutputFolder string
+	Elapsed      time.Duration
+}
+
+// RunGeneration performs parallel image generation and saves results
+func RunGeneration(config *Config) GenerationOutput {
+	startTime := time.Now()
+
+	// Ensure output folder exists
+	if err := os.MkdirAll(config.OutputFolder, 0755); err != nil {
+		return GenerationOutput{
+			Results: []GenerationResult{{
+				Index: 0,
+				Error: fmt.Errorf("failed to create output folder: %v", err),
+			}},
+			OutputFolder: config.OutputFolder,
+			Elapsed:      time.Since(startTime),
+		}
+	}
+
+	// Generate images in parallel
+	var wg sync.WaitGroup
+	resultsChan := make(chan GenerationResult, config.NumImages)
+
+	for i := 0; i < config.NumImages; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			result := GenerateImage(config, index)
+
+			// Save if successful
+			if result.Error == nil && result.ImageData != nil {
+				filename := fmt.Sprintf("generated_%d_%s.png", result.Index+1, time.Now().Format("20060102_150405"))
+				outputFile := filepath.Join(config.OutputFolder, filename)
+				if err := os.WriteFile(outputFile, result.ImageData, 0644); err != nil {
+					result.Error = fmt.Errorf("failed to save: %v", err)
+				} else {
+					result.Filename = filename
+				}
+			}
+
+			resultsChan <- result
+		}(i)
+	}
+
+	// Close channel when all goroutines complete
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	// Collect results
+	var results []GenerationResult
+	for result := range resultsChan {
+		results = append(results, result)
+	}
+
+	return GenerationOutput{
+		Results:      results,
+		OutputFolder: config.OutputFolder,
+		Elapsed:      time.Since(startTime),
+	}
 }
 
 // GenerateImage performs a single image generation request
