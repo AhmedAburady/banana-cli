@@ -19,6 +19,16 @@ const (
 	GeminiURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent"
 )
 
+// Shared HTTP client with connection pooling and timeouts
+var httpClient = &http.Client{
+	Timeout: 120 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        20,
+		MaxIdleConnsPerHost: 20,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
+
 // Gemini API structures
 type InlineData struct {
 	MimeType string `json:"mime_type"`
@@ -155,42 +165,95 @@ func LoadReferences(path string) ([]Part, error) {
 	return loadSingleImage(path)
 }
 
-// loadImagesFromDir loads all supported images from a directory
-func loadImagesFromDir(dirPath string) ([]Part, error) {
-	var parts []Part
+// imageLoadResult holds the result of loading a single image
+type imageLoadResult struct {
+	index int
+	part  Part
+	err   error
+}
 
+// loadImagesFromDir loads all supported images from a directory in parallel
+func loadImagesFromDir(dirPath string) ([]Part, error) {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return nil, err
 	}
 
+	// Filter to only supported images
+	type imageEntry struct {
+		index    int
+		filePath string
+		mimeType string
+	}
+	var imageEntries []imageEntry
+
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
-
 		ext := strings.ToLower(filepath.Ext(entry.Name()))
 		mimeType, ok := supportedExts[ext]
 		if !ok {
 			continue
 		}
-
-		filePath := filepath.Join(dirPath, entry.Name())
-		data, err := os.ReadFile(filePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read %s: %v", entry.Name(), err)
-		}
-
-		encoded := base64.StdEncoding.EncodeToString(data)
-		parts = append(parts, Part{
-			InlineData: &InlineData{
-				MimeType: mimeType,
-				Data:     encoded,
-			},
+		imageEntries = append(imageEntries, imageEntry{
+			index:    len(imageEntries),
+			filePath: filepath.Join(dirPath, entry.Name()),
+			mimeType: mimeType,
 		})
 	}
 
-	return parts, nil
+	if len(imageEntries) == 0 {
+		return nil, nil
+	}
+
+	// Load and encode images in parallel
+	var wg sync.WaitGroup
+	resultsChan := make(chan imageLoadResult, len(imageEntries))
+
+	for _, img := range imageEntries {
+		wg.Add(1)
+		go func(img imageEntry) {
+			defer wg.Done()
+
+			data, err := os.ReadFile(img.filePath)
+			if err != nil {
+				resultsChan <- imageLoadResult{
+					index: img.index,
+					err:   fmt.Errorf("failed to read %s: %v", filepath.Base(img.filePath), err),
+				}
+				return
+			}
+
+			encoded := base64.StdEncoding.EncodeToString(data)
+			resultsChan <- imageLoadResult{
+				index: img.index,
+				part: Part{
+					InlineData: &InlineData{
+						MimeType: img.mimeType,
+						Data:     encoded,
+					},
+				},
+			}
+		}(img)
+	}
+
+	// Close channel when done
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	// Collect results and preserve order
+	results := make([]Part, len(imageEntries))
+	for result := range resultsChan {
+		if result.err != nil {
+			return nil, result.err
+		}
+		results[result.index] = result.part
+	}
+
+	return results, nil
 }
 
 // loadSingleImage loads a single image file
@@ -336,8 +399,14 @@ func GenerateImage(config *Config, index int) GenerationResult {
 	// Build URL with API key
 	url := fmt.Sprintf("%s?key=%s", GeminiURL, config.APIKey)
 
-	// Make request
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	// Make request using shared client with connection pooling
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return GenerationResult{Index: index, Error: fmt.Errorf("failed to create request: %v", err)}
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return GenerationResult{Index: index, Error: fmt.Errorf("request failed: %v", err)}
 	}

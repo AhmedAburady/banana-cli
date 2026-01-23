@@ -1,3 +1,27 @@
+# BANANA CLI v1.0.6
+
+## What's New
+
+### Performance
+
+- HTTP connection pooling for faster concurrent requests
+- Parallel loading and base64 encoding of reference images
+- Request timeout handling (120s)
+
+---
+
+# BANANA CLI v1.0.5
+
+## What's New
+
+### Security
+
+- API key input is now hidden in both TUI and CLI
+- TUI shows `•••••` as you type
+- CLI uses standard hidden input (like sudo/ssh)
+
+---
+
 # BANANA CLI v1.0.4
 
 ## What's New
