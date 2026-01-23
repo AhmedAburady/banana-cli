@@ -11,6 +11,7 @@ import (
 
 	"github.com/AhmedAburady/banana-cli/api"
 	"github.com/AhmedAburady/banana-cli/cli"
+	"github.com/AhmedAburady/banana-cli/config"
 	"github.com/AhmedAburady/banana-cli/ui"
 	"github.com/AhmedAburady/banana-cli/views"
 )
@@ -19,7 +20,8 @@ import (
 type ViewState int
 
 const (
-	MenuView ViewState = iota
+	APIKeyView ViewState = iota
+	MenuView
 	GenerateView
 	EditView
 	ProcessingView
@@ -30,6 +32,7 @@ const (
 type Model struct {
 	currentView   ViewState
 	menuModel     ui.MenuModel
+	apiKeyModel   views.APIKeyModel
 	generateModel views.GenerateModel
 	editModel     views.EditModel
 
@@ -71,9 +74,16 @@ func NewModel(apiKey string) Model {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(ui.DraculaPurple)
 
+	// Start in APIKeyView if no API key, otherwise go to menu
+	initialView := MenuView
+	if apiKey == "" {
+		initialView = APIKeyView
+	}
+
 	return Model{
-		currentView: MenuView,
+		currentView: initialView,
 		menuModel:   ui.NewMenuModel(menuStyles),
+		apiKeyModel: views.NewAPIKeyModel(),
 		apiKey:      apiKey,
 		spinner:     s,
 	}
@@ -81,10 +91,15 @@ func NewModel(apiKey string) Model {
 
 // Init initializes the application
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(
-		m.menuModel.Init(),
-		tea.EnterAltScreen,
-	)
+	cmds := []tea.Cmd{tea.EnterAltScreen}
+
+	if m.currentView == APIKeyView {
+		cmds = append(cmds, m.apiKeyModel.Init())
+	} else {
+		cmds = append(cmds, m.menuModel.Init())
+	}
+
+	return tea.Batch(cmds...)
 }
 
 // Update handles all application messages
@@ -105,6 +120,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Route to current view
 	switch m.currentView {
+	case APIKeyView:
+		return m.updateAPIKeyView(msg)
+
 	case MenuView:
 		return m.updateMenuView(msg)
 
@@ -276,11 +294,26 @@ func (m Model) updateResultsView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) updateAPIKeyView(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle API key saved message
+	if saved, ok := msg.(views.APIKeySavedMsg); ok {
+		m.apiKey = saved.APIKey
+		m.currentView = MenuView
+		return m, m.menuModel.Init()
+	}
+
+	var cmd tea.Cmd
+	m.apiKeyModel, cmd = m.apiKeyModel.Update(msg)
+	return m, cmd
+}
+
 // View renders the current view
 func (m Model) View() string {
 	var content string
 
 	switch m.currentView {
+	case APIKeyView:
+		content = m.renderAPIKeyView()
 	case MenuView:
 		content = m.renderMenuView()
 	case GenerateView:
@@ -316,6 +349,29 @@ func (m Model) renderMenuView() string {
 	content := lipgloss.JoinVertical(lipgloss.Center,
 		header,
 		menuContent,
+	)
+
+	window := ui.WindowStyle.Width(110).Render(content)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, window)
+}
+
+func (m Model) renderAPIKeyView() string {
+	banner := ui.RenderGradientBanner()
+	subtitle := ui.RenderSubtitle()
+
+	bannerStyle := lipgloss.NewStyle().Width(108).Align(lipgloss.Center)
+	centeredBanner := bannerStyle.Render(banner)
+
+	header := lipgloss.JoinVertical(lipgloss.Center,
+		"",
+		centeredBanner,
+		subtitle,
+		"",
+	)
+
+	content := lipgloss.JoinVertical(lipgloss.Center,
+		header,
+		m.apiKeyModel.View(),
 	)
 
 	window := ui.WindowStyle.Width(110).Render(content)
@@ -374,8 +430,21 @@ func (m Model) renderResultsView() string {
 }
 
 func main() {
-	// Parse CLI flags first
+	// Handle config subcommand first (before flag parsing)
+	if len(os.Args) > 1 && os.Args[1] == "config" {
+		if cli.HandleConfigCommand(os.Args[1:]) {
+			return
+		}
+	}
+
+	// Parse CLI flags
 	opts, cliMode := cli.ParseFlags()
+
+	// Show version if requested
+	if opts.Version {
+		cli.PrintVersion()
+		return
+	}
 
 	// Show help if requested
 	if opts.Help {
@@ -383,24 +452,19 @@ func main() {
 		return
 	}
 
-	// Get API key from environment
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	if apiKey == "" {
-		apiKey = os.Getenv("GOOGLE_API_KEY")
-	}
-	if apiKey == "" {
-		fmt.Println("Error: GEMINI_API_KEY environment variable not set")
-		fmt.Println("Set it with: export GEMINI_API_KEY=your_key")
-		os.Exit(1)
-	}
+	// Get API key from config (checks env vars first, then config file)
+	apiKey := config.GetAPIKey()
 
-	// Run CLI mode if prompt is provided
+	// CLI mode: prompt for API key if not found
 	if cliMode {
+		if apiKey == "" {
+			apiKey = cli.PromptForAPIKey()
+		}
 		cli.Run(opts, apiKey)
 		return
 	}
 
-	// No flags → launch TUI
+	// TUI mode: launch with API key (TUI will handle missing key)
 	p := tea.NewProgram(NewModel(apiKey), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error running program: %v\n", err)

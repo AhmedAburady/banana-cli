@@ -79,11 +79,26 @@ go build -o banana ./cmd/banana
 
 Get a free Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
-### 2. Set the Environment Variable
+### 2. Configure your API Key
 
+**Option A: Save to config file (Recommended)**
+```bash
+banana config set-key YOUR_API_KEY
+```
+
+**Option B: Environment variable**
 ```bash
 # Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
 export GEMINI_API_KEY="your_api_key_here"
+```
+
+**Option C: Just run it**
+```bash
+# CLI will prompt you to enter and save your API key
+banana -p "a sunset"
+
+# TUI will show an API key input screen
+banana
 ```
 
 ### 3. Generate Your First Image
@@ -108,6 +123,7 @@ The CLI mode allows you to generate or edit images directly from the command lin
 
 ```
 banana [flags]
+banana config <command>
 ```
 
 Running `banana` without flags opens the interactive TUI.
@@ -123,7 +139,20 @@ Running `banana` without flags opens the interactive TUI.
 | `-s` | | string | **Size** - Output resolution | `1K` |
 | `-g` | | bool | **Grounding** - Enable Google Search grounding | `false` |
 | `-i` | | string | **Input** - Reference image/folder for edit mode | *none* |
+| `-v` | `--version` | | Show version | |
 | | `--help` | | Show help message | |
+
+### Config Commands
+
+Manage your API key configuration:
+
+```bash
+banana config set-key <KEY>   # Save your Gemini API key
+banana config show            # Show current configuration (key is masked)
+banana config path            # Show config file location
+```
+
+The config file is stored at `~/.config/banana/config.json`.
 
 ### Aspect Ratios
 
@@ -304,25 +333,41 @@ All generated images are saved as **PNG** format.
 
 ---
 
-## Environment Variables
+## API Key Configuration
 
-| Variable | Description |
-|----------|-------------|
-| `GEMINI_API_KEY` | Your Gemini API key (primary) |
-| `GOOGLE_API_KEY` | Alternative API key variable |
+BANANA CLI looks for your API key in the following order (first found wins):
+
+| Priority | Source | Description |
+|----------|--------|-------------|
+| 1 | `GEMINI_API_KEY` | Environment variable (highest priority) |
+| 2 | `GOOGLE_API_KEY` | Alternative environment variable |
+| 3 | Config file | `~/.config/banana/config.json` |
+
+This allows you to:
+- Use environment variables to temporarily override the saved key
+- Keep a default key in the config file for convenience
+- Use different keys for different projects via env vars
 
 ---
 
 ## Troubleshooting
 
-### "GEMINI_API_KEY environment variable not set"
+### API Key Issues
 
-Make sure you've exported your API key:
+**No API key configured:**
 ```bash
+# Easiest: save to config
+banana config set-key YOUR_API_KEY
+
+# Or use environment variable
 export GEMINI_API_KEY="your_key_here"
 ```
 
-Add it to your shell profile for persistence.
+**Check current configuration:**
+```bash
+banana config show    # Shows masked key
+banana config path    # Shows config file location
+```
 
 ### "No images found in directory"
 

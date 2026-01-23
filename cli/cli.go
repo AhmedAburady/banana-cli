@@ -1,14 +1,20 @@
 package cli
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/AhmedAburady/banana-cli/api"
+	"github.com/AhmedAburady/banana-cli/config"
 )
+
+// Version is set at build time via ldflags
+var Version = "dev"
 
 // Options holds CLI configuration
 type Options struct {
@@ -20,6 +26,7 @@ type Options struct {
 	Grounding   bool
 	RefInput    string // -i flag, triggers edit mode if set
 	Help        bool
+	Version     bool
 }
 
 // Valid aspect ratios and image sizes
@@ -44,6 +51,8 @@ func ParseFlags() (*Options, bool) {
 	flag.BoolVar(&opts.Grounding, "g", false, "Enable grounding with Google Search")
 	flag.StringVar(&opts.RefInput, "i", "", "Reference image/folder (enables edit mode)")
 	flag.BoolVar(&opts.Help, "help", false, "Show help message")
+	flag.BoolVar(&opts.Version, "version", false, "Show version")
+	flag.BoolVar(&opts.Version, "v", false, "Show version")
 
 	flag.Parse()
 
@@ -51,6 +60,11 @@ func ParseFlags() (*Options, bool) {
 	cliMode := opts.Prompt != ""
 
 	return opts, cliMode
+}
+
+// PrintVersion prints the version
+func PrintVersion() {
+	fmt.Printf("banana version %s\n", Version)
 }
 
 // Validate validates the CLI options
@@ -216,6 +230,7 @@ BANANA CLI - Gemini AI Image Generator
 Usage:
   banana                     Open interactive TUI
   banana [flags]             Generate/edit images from command line
+  banana config <command>    Manage configuration
 
 Flags:
   -p string    Prompt (required for CLI mode)
@@ -225,7 +240,13 @@ Flags:
   -s string    Image size: 1K, 2K, 4K (default "1K")
   -g           Enable grounding with Google Search
   -i string    Reference image/folder (enables edit mode)
+  --version    Show version
   --help       Show this help message
+
+Config Commands:
+  banana config set-key <KEY>   Save your Gemini API key
+  banana config show            Show current configuration
+  banana config path            Show config file location
 
 Examples:
   banana -p "a sunset over mountains" -n 3
@@ -234,4 +255,87 @@ Examples:
   banana -i ./images/ -p "add rain effect" -n 2 -o ./output
 `
 	fmt.Print(help)
+}
+
+// HandleConfigCommand handles the config subcommand
+func HandleConfigCommand(args []string) bool {
+	if len(args) < 2 || args[0] != "config" {
+		return false
+	}
+
+	switch args[1] {
+	case "set-key":
+		if len(args) < 3 {
+			fmt.Println("Usage: banana config set-key <API_KEY>")
+			os.Exit(1)
+		}
+		if err := config.SaveAPIKey(args[2]); err != nil {
+			fmt.Printf("\033[31mError:\033[0m Failed to save API key: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("\033[32m✓\033[0m API key saved successfully")
+		fmt.Printf("  Location: %s\n", config.DefaultConfigPath())
+
+	case "show":
+		cfg, err := config.Load()
+		if err != nil {
+			fmt.Printf("\033[31mError:\033[0m Failed to load config: %v\n", err)
+			os.Exit(1)
+		}
+		if cfg.APIKey == "" {
+			fmt.Println("No API key configured")
+			fmt.Println("Set one with: banana config set-key <YOUR_API_KEY>")
+		} else {
+			// Mask the API key, showing only first 8 and last 4 chars
+			key := cfg.APIKey
+			masked := key
+			if len(key) > 12 {
+				masked = key[:8] + "..." + key[len(key)-4:]
+			}
+			fmt.Printf("API Key: %s\n", masked)
+		}
+
+	case "path":
+		fmt.Println(config.DefaultConfigPath())
+
+	default:
+		fmt.Printf("Unknown config command: %s\n", args[1])
+		fmt.Println("Available commands: set-key, show, path")
+		os.Exit(1)
+	}
+
+	return true
+}
+
+// PromptForAPIKey prompts the user to enter their API key
+func PromptForAPIKey() string {
+	fmt.Println("\033[33mNo API key found.\033[0m")
+	fmt.Println()
+	fmt.Println("Get your free API key from: https://aistudio.google.com/app/apikey")
+	fmt.Println()
+	fmt.Print("Enter your Gemini API key: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	key, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Printf("\033[31mError:\033[0m Failed to read input: %v\n", err)
+		os.Exit(1)
+	}
+
+	key = strings.TrimSpace(key)
+	if key == "" {
+		fmt.Println("\033[31mError:\033[0m API key cannot be empty")
+		os.Exit(1)
+	}
+
+	// Save the key
+	if err := config.SaveAPIKey(key); err != nil {
+		fmt.Printf("\033[31mError:\033[0m Failed to save API key: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("\033[32m✓\033[0m API key saved successfully")
+	fmt.Println()
+
+	return key
 }
