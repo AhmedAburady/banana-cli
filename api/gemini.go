@@ -35,7 +35,7 @@ type Content struct {
 }
 
 type ImageConfig struct {
-	AspectRatio string `json:"aspectRatio"`
+	AspectRatio string `json:"aspectRatio,omitempty"`
 	ImageSize   string `json:"imageSize"`
 }
 

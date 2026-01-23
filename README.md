@@ -14,7 +14,7 @@ Features both an interactive terminal UI and a scriptable CLI interface.
 [Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [CLI Reference](#cli-reference) • [TUI Guide](#tui-guide)
 
 ![BANANA CLI TUI](screenshots/tui1.png)
-![BANANA CLI TUI](screenshots/tui2.png)
+![BANANA CLI TUI](screenshots/tui2.png?v=1)
 
 
 
@@ -135,7 +135,7 @@ Running `banana` without flags opens the interactive TUI.
 | `-p` | | string | **Prompt** - The text description for image generation | *required* |
 | `-o` | | string | **Output** - Directory to save generated images | `.` (current) |
 | `-n` | | int | **Number** - How many images to generate (1-20) | `1` |
-| `-ar` | | string | **Aspect Ratio** - Image dimensions ratio | `1:1` |
+| `-ar` | | string | **Aspect Ratio** - Image dimensions ratio | `Auto` |
 | `-s` | | string | **Size** - Output resolution | `1K` |
 | `-g` | | bool | **Grounding** - Enable Google Search grounding | `false` |
 | `-i` | | string | **Input** - Reference image/folder for edit mode | *none* |
@@ -158,11 +158,17 @@ The config file is stored at `~/.config/banana/config.json`.
 
 | Value | Use Case |
 |-------|----------|
+| `Auto` | **Default** - Let Gemini decide the best ratio |
 | `1:1` | Square - Social media posts, profile pictures |
 | `16:9` | Landscape - Desktop wallpapers, YouTube thumbnails |
 | `9:16` | Portrait - Phone wallpapers, Instagram stories |
 | `4:3` | Classic - Presentations, traditional photos |
 | `3:4` | Portrait Classic - Portraits, posters |
+| `2:3` | Portrait - Standard photo print ratio |
+| `3:2` | Landscape - DSLR camera ratio |
+| `5:4` | Near-square - Medium format photos |
+| `4:5` | Portrait - Instagram portrait posts |
+| `21:9` | Ultra-wide - Cinematic, ultrawide monitors |
 
 ### Image Sizes
 

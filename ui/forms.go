@@ -422,8 +422,36 @@ func (f *Form) View() string {
 			}
 
 		case FieldSelect:
+			// Show max 5 items with scroll indicators
+			const maxVisible = 5
+			totalOpts := len(field.Options)
+
+			// Calculate visible window centered on selection
+			startIdx := 0
+			endIdx := totalOpts
+			if totalOpts > maxVisible {
+				// Center the window on the selected item
+				startIdx = field.Selected - maxVisible/2
+				if startIdx < 0 {
+					startIdx = 0
+				}
+				endIdx = startIdx + maxVisible
+				if endIdx > totalOpts {
+					endIdx = totalOpts
+					startIdx = endIdx - maxVisible
+				}
+			}
+
 			var opts []string
-			for j, opt := range field.Options {
+
+			// Left scroll indicator
+			if startIdx > 0 {
+				opts = append(opts, descStyle.Render("◀"))
+			}
+
+			// Visible options
+			for j := startIdx; j < endIdx; j++ {
+				opt := field.Options[j]
 				if j == field.Selected {
 					style := lipgloss.NewStyle().
 						Background(DraculaPurple).
@@ -439,6 +467,12 @@ func (f *Form) View() string {
 					opts = append(opts, style.Render(opt.Label))
 				}
 			}
+
+			// Right scroll indicator
+			if endIdx < totalOpts {
+				opts = append(opts, descStyle.Render("▶"))
+			}
+
 			b.WriteString("  " + strings.Join(opts, " ") + "\n")
 
 		case FieldToggle:
@@ -589,13 +623,20 @@ func computePathSuggestions(input string, dirsOnly bool, allowedExts []string) [
 }
 
 // AspectRatioOptions returns standard aspect ratio options
+// Auto (empty string) means aspectRatio is not sent in the request
 func AspectRatioOptions() []SelectOption {
 	return []SelectOption{
+		{Label: "Auto", Value: ""},
 		{Label: "1:1", Value: "1:1"},
 		{Label: "16:9", Value: "16:9"},
 		{Label: "9:16", Value: "9:16"},
 		{Label: "4:3", Value: "4:3"},
 		{Label: "3:4", Value: "3:4"},
+		{Label: "2:3", Value: "2:3"},
+		{Label: "3:2", Value: "3:2"},
+		{Label: "5:4", Value: "5:4"},
+		{Label: "4:5", Value: "4:5"},
+		{Label: "21:9", Value: "21:9"},
 	}
 }
 

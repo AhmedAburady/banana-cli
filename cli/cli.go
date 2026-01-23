@@ -32,7 +32,17 @@ type Options struct {
 // Valid aspect ratios and image sizes
 var (
 	validAspectRatios = map[string]bool{
-		"1:1": true, "16:9": true, "9:16": true, "4:3": true, "3:4": true,
+		"":     true, // Auto (not included in request)
+		"1:1":  true,
+		"16:9": true,
+		"9:16": true,
+		"4:3":  true,
+		"3:4":  true,
+		"2:3":  true,
+		"3:2":  true,
+		"5:4":  true,
+		"4:5":  true,
+		"21:9": true,
 	}
 	validImageSizes = map[string]bool{
 		"1K": true, "2K": true, "4K": true,
@@ -46,7 +56,7 @@ func ParseFlags() (*Options, bool) {
 	flag.StringVar(&opts.Prompt, "p", "", "Prompt text (required for CLI mode)")
 	flag.StringVar(&opts.Output, "o", ".", "Output folder")
 	flag.IntVar(&opts.NumImages, "n", 1, "Number of images to generate (1-20)")
-	flag.StringVar(&opts.AspectRatio, "ar", "1:1", "Aspect ratio: 1:1, 16:9, 9:16, 4:3, 3:4")
+	flag.StringVar(&opts.AspectRatio, "ar", "", "Aspect ratio (default: Auto)")
 	flag.StringVar(&opts.ImageSize, "s", "1K", "Image size: 1K, 2K, 4K")
 	flag.BoolVar(&opts.Grounding, "g", false, "Enable grounding with Google Search")
 	flag.StringVar(&opts.RefInput, "i", "", "Reference image/folder (enables edit mode)")
@@ -85,7 +95,7 @@ func (opts *Options) Validate() error {
 
 	// Validate aspect ratio
 	if !validAspectRatios[opts.AspectRatio] {
-		return fmt.Errorf("invalid aspect ratio: %s (valid: 1:1, 16:9, 9:16, 4:3, 3:4)", opts.AspectRatio)
+		return fmt.Errorf("invalid aspect ratio: %s", opts.AspectRatio)
 	}
 
 	// Validate image size
@@ -236,7 +246,7 @@ Flags:
   -p string    Prompt (required for CLI mode)
   -o string    Output folder (default ".")
   -n int       Number of images (default 1)
-  -ar string   Aspect ratio: 1:1, 16:9, 9:16, 4:3, 3:4 (default "1:1")
+  -ar string   Aspect ratio (default: Auto)
   -s string    Image size: 1K, 2K, 4K (default "1K")
   -g           Enable grounding with Google Search
   -i string    Reference image/folder (enables edit mode)

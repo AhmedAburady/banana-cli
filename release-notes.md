@@ -1,3 +1,19 @@
+# BANANA CLI v1.0.4
+
+## What's New
+
+### Expanded Aspect Ratios
+
+- Added "Auto" as the default aspect ratio - lets Gemini choose the best ratio for your prompt
+- Now supports 11 aspect ratios: Auto, 1:1, 16:9, 9:16, 4:3, 3:4, 2:3, 3:2, 5:4, 4:5, 21:9
+- Added ultra-wide 21:9 for cinematic shots
+
+### Improved TUI
+
+- Horizontal scrolling for aspect ratio selector with ◀ ▶ indicators
+
+---
+
 # BANANA CLI v1.0.3
 
 ## What's New
