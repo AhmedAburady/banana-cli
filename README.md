@@ -9,7 +9,7 @@ Features both an interactive terminal UI and a scriptable CLI interface.
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/AhmedAburady/banana-cli?include_prereleases)](https://github.com/AhmedAburady/banana-cli/releases)
+[![Release](https://img.shields.io/github/v/release/AhmedAburady/banana-cli?include_prereleases&v=104)](https://github.com/AhmedAburady/banana-cli/releases)
 
 [Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [CLI Reference](#cli-reference) • [TUI Guide](#tui-guide)
 

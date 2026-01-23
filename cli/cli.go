@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
 	"os"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/AhmedAburady/banana-cli/api"
 	"github.com/AhmedAburady/banana-cli/config"
+	"golang.org/x/term"
 )
 
 // Version is set at build time via ldflags
@@ -325,14 +325,15 @@ func PromptForAPIKey() string {
 	fmt.Println()
 	fmt.Print("Enter your Gemini API key: ")
 
-	reader := bufio.NewReader(os.Stdin)
-	key, err := reader.ReadString('\n')
+	// Read password without echoing to terminal
+	keyBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println() // Add newline after hidden input
 	if err != nil {
 		fmt.Printf("\033[31mError:\033[0m Failed to read input: %v\n", err)
 		os.Exit(1)
 	}
 
-	key = strings.TrimSpace(key)
+	key := strings.TrimSpace(string(keyBytes))
 	if key == "" {
 		fmt.Println("\033[31mError:\033[0m API key cannot be empty")
 		os.Exit(1)

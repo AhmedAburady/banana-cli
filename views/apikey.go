@@ -30,6 +30,8 @@ func NewAPIKeyModel() APIKeyModel {
 	ti.Placeholder = "Enter your Gemini API key..."
 	ti.CharLimit = 100
 	ti.Width = 50
+	ti.EchoMode = textinput.EchoPassword
+	ti.EchoCharacter = '•'
 	ti.PromptStyle = lipgloss.NewStyle().Foreground(ui.DraculaPurple)
 	ti.TextStyle = lipgloss.NewStyle().Foreground(ui.DraculaForeground)
 	ti.Focus()
