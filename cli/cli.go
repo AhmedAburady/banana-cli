@@ -84,6 +84,19 @@ func (opts *Options) Validate() error {
 		return fmt.Errorf("prompt is required (-p flag)")
 	}
 
+	// Check if prompt is a file path - if file exists, read prompt from it
+	promptPath := api.ExpandTilde(opts.Prompt)
+	if info, err := os.Stat(promptPath); err == nil && !info.IsDir() {
+		data, err := os.ReadFile(promptPath)
+		if err != nil {
+			return fmt.Errorf("failed to read prompt file: %v", err)
+		}
+		opts.Prompt = strings.TrimSpace(string(data))
+		if opts.Prompt == "" {
+			return fmt.Errorf("prompt file is empty: %s", promptPath)
+		}
+	}
+
 	// Expand tilde in paths
 	opts.Output = api.ExpandTilde(opts.Output)
 	opts.RefInput = api.ExpandTilde(opts.RefInput)
@@ -243,7 +256,7 @@ Usage:
   banana config <command>    Manage configuration
 
 Flags:
-  -p string    Prompt (required for CLI mode)
+  -p string    Prompt text or path to prompt file (required for CLI mode)
   -o string    Output folder (default ".")
   -n int       Number of images (default 1)
   -ar string   Aspect ratio (default: Auto)
@@ -260,6 +273,7 @@ Config Commands:
 
 Examples:
   banana -p "a sunset over mountains" -n 3
+  banana -p prompt.txt -n 3                      # load prompt from file
   banana -i ./photo.png -p "make it cartoon style"
   banana -p "a futuristic city" -g -ar 16:9 -s 2K
   banana -i ./images/ -p "add rain effect" -n 2 -o ./output
