@@ -29,6 +29,7 @@ Features both an interactive terminal UI and a scriptable CLI interface.
 | **Dual Interface** | Interactive TUI for exploration, CLI for scripting and automation |
 | **Image Generation** | Create images from text prompts with Gemini AI |
 | **Image Editing** | Transform existing images using reference-based editing |
+| **Style Analysis** | Extract style descriptions from images with `describe` command |
 | **Parallel Processing** | Generate up to 20 images simultaneously |
 | **Flexible Output** | Control aspect ratio (1:1, 16:9, 9:16, 4:3, 3:4) and size (1K, 2K, 4K) |
 | **Google Search Grounding** | Enhance prompts with real-time web search context |
@@ -123,6 +124,7 @@ The CLI mode allows you to generate or edit images directly from the command lin
 
 ```
 banana [flags]
+banana describe [flags]
 banana config <command>
 ```
 
@@ -153,6 +155,22 @@ banana config path            # Show config file location
 ```
 
 The config file is stored at `~/.config/banana/config.json`.
+
+### Describe Command
+
+Analyze images and extract style descriptions:
+
+```bash
+banana describe -i <image-or-folder> [flags]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-i` | Input image or folder (required) | - |
+| `-o` | Output file path | stdout |
+| `-p` | Custom prompt (overrides default) | - |
+| `-a` | Additional context (prepended to default) | - |
+| `-json` | Output as structured JSON | `false` |
 
 ### Aspect Ratios
 
@@ -219,6 +237,24 @@ banana -i ./portrait.png -p "transform into anime art style" -o ./anime-versions
 
 # Add effects
 banana -i ./landscape.jpg -p "add dramatic storm clouds and lightning"
+```
+
+### Describe Mode
+
+Extract style descriptions from images:
+
+```bash
+# Plain text style description
+banana describe -i photo.jpg
+
+# Analyze folder of style references (unified description)
+banana describe -i ./reference_images/
+
+# Add style context to guide analysis
+banana describe -i image.png -a "2D flat vector art"
+
+# Structured JSON output
+banana describe -i photo.jpg -json -o style.json
 ```
 
 ### Output Example
