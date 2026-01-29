@@ -150,6 +150,12 @@ func IsSupportedImage(path string) bool {
 	return ok
 }
 
+// GetImageMimeType returns the MIME type for a supported image extension
+func GetImageMimeType(ext string) (string, bool) {
+	mimeType, ok := supportedExts[strings.ToLower(ext)]
+	return mimeType, ok
+}
+
 // LoadReferences loads images from either:
 // - A directory (all images directly in that folder)
 // - A single image file path

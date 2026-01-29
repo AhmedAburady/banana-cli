@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/briandowns/spinner"
+
 	"github.com/AhmedAburady/banana-cli/api"
 	"github.com/AhmedAburady/banana-cli/config"
 	"golang.org/x/term"
@@ -154,9 +156,6 @@ func (opts *Options) Validate() error {
 	return nil
 }
 
-// Spinner frames for terminal spinner
-var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-
 // Run executes CLI mode with terminal spinner
 func Run(opts *Options, apiKey string) {
 	// Validate options
@@ -194,39 +193,22 @@ func Run(opts *Options, apiKey string) {
 		os.Exit(1)
 	}
 
-	// Start spinner
-	stopSpinner := make(chan bool)
-	spinnerDone := make(chan bool)
-
+	// Start spinner (CharSet 14 = braille dots)
 	modeText := "Generating"
 	if opts.RefInput != "" {
 		modeText = "Editing"
 	}
-	spinnerMsg := fmt.Sprintf("%s %d image(s)...", modeText, opts.NumImages)
 
-	go func() {
-		frameIdx := 0
-		for {
-			select {
-			case <-stopSpinner:
-				// Clear spinner line
-				fmt.Print("\r\033[K")
-				spinnerDone <- true
-				return
-			default:
-				fmt.Printf("\r\033[35m%s\033[0m %s", spinnerFrames[frameIdx], spinnerMsg)
-				frameIdx = (frameIdx + 1) % len(spinnerFrames)
-				time.Sleep(80 * time.Millisecond)
-			}
-		}
-	}()
+	s := spinner.New(spinner.CharSets[14], 80*time.Millisecond)
+	s.Suffix = fmt.Sprintf(" %s %d image(s)...", modeText, opts.NumImages)
+	s.Color("magenta")
+	s.Start()
 
 	// Run generation
 	output := api.RunGeneration(config)
 
 	// Stop spinner
-	stopSpinner <- true
-	<-spinnerDone
+	s.Stop()
 
 	// Print results
 	fmt.Println()
@@ -266,11 +248,12 @@ func PrintHelp() {
 BANANA CLI - Gemini AI Image Generator
 
 Usage:
-  banana                     Open interactive TUI
-  banana [flags]             Generate/edit images from command line
-  banana config <command>    Manage configuration
+  banana                        Open interactive TUI
+  banana [flags]                Generate/edit images from command line
+  banana describe [flags]       Describe/analyze image style using AI
+  banana config <command>       Manage configuration
 
-Flags:
+Generate/Edit Flags:
   -p string    Prompt text or path to prompt file (required for CLI mode)
   -o string    Output folder (default ".")
   -n int       Number of images (default 1)
@@ -280,6 +263,13 @@ Flags:
   -i string    Reference image/folder (enables edit mode)
   --version    Show version
   --help       Show this help message
+
+Describe Flags:
+  -i string    Input image or folder (required)
+  -o string    Output file path (default: stdout)
+  -p string    Custom prompt (overrides default instruction)
+  -a string    Additional instructions (prepended to default)
+  -json        Output as structured JSON format
 
 Config Commands:
   banana config set-key <KEY>   Save your Gemini API key
@@ -292,6 +282,8 @@ Examples:
   banana -i ./photo.png -p "make it cartoon style"
   banana -p "a futuristic city" -g -ar 16:9 -s 2K
   banana -i ./images/ -p "add rain effect" -n 2 -o ./output
+  banana describe -i photo.jpg                   # analyze image style
+  banana describe -i ./styles/ -o style.json    # analyze folder of images
 `
 	fmt.Print(help)
 }

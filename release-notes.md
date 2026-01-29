@@ -1,6 +1,32 @@
-# BANANA CLI v1.0.7
+# BANANA CLI v1.0.9
 
 ## What's New
+
+### New `describe` Command
+
+Analyze images and extract style descriptions using AI. Perfect for creating consistent style prompts.
+
+```bash
+# Plain text style description
+banana describe -i photo.jpg
+
+# Analyze folder of style references (unified description)
+banana describe -i ./reference_images/
+
+# Add style context to guide analysis
+banana describe -i image.png -a "2D flat vector art"
+
+# Structured JSON output
+banana describe -i photo.jpg -json -o style.json
+```
+
+**Features:**
+- Single image or folder analysis
+- Multiple images = unified style description
+- `-p` flag for custom prompts (overrides default)
+- `-a` flag for additional context (prepended to default)
+- `-json` flag for comprehensive structured output
+- Output to file (`-o`) or stdout
 
 ### Prompt File Support
 
@@ -16,6 +42,23 @@ banana -p "a sunset over mountains"
 banana -p prompt.json -n 3
 banana -p ~/prompts/calligraphy.txt -ar 1:1
 ```
+
+### Auto Version Detection
+
+- Version now auto-detected from Go build info when installed via `go install`
+- No more "dev" version when installing from module
+
+---
+
+# BANANA CLI v1.0.8
+
+(Broken release - use v1.0.9 instead)
+
+---
+
+# BANANA CLI v1.0.7
+
+(Broken release - use v1.0.9 instead)
 
 ---
 

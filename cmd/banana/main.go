@@ -12,6 +12,7 @@ import (
 	"github.com/AhmedAburady/banana-cli/api"
 	"github.com/AhmedAburady/banana-cli/cli"
 	"github.com/AhmedAburady/banana-cli/config"
+	"github.com/AhmedAburady/banana-cli/describe"
 	"github.com/AhmedAburady/banana-cli/ui"
 	"github.com/AhmedAburady/banana-cli/views"
 )
@@ -430,9 +431,15 @@ func (m Model) renderResultsView() string {
 }
 
 func main() {
-	// Handle config subcommand first (before flag parsing)
-	if len(os.Args) > 1 && os.Args[1] == "config" {
-		if cli.HandleConfigCommand(os.Args[1:]) {
+	// Handle subcommands first (before flag parsing)
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "config":
+			if cli.HandleConfigCommand(os.Args[1:]) {
+				return
+			}
+		case "describe":
+			describe.HandleDescribeCommand(os.Args[2:])
 			return
 		}
 	}
