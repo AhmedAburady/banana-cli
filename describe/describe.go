@@ -113,13 +113,11 @@ Flags:
 Output Modes:
   Plain Text   A detailed style description ready to use as a generation prompt
 
-  JSON (-json) Comprehensive structured style guide including:
-               • description, style_summary, negative_prompt
-               • color_palette (hex codes, palette rules, background)
-               • visual_dna (stroke dynamics, composition, production aesthetic)
-               • ornamentation, rendering_directives, do_not_change
-               • variation_controls, fidelity_targets
-               • script_classification, calligraphy_logic (for typography)
+  JSON (-json) Structured style guide with:
+               • style_name, description, style_summary
+               • colors (hex codes)
+               • medium, composition
+               • key_elements, avoid
 
 Examples:
   banana describe -i photo.jpg                         # Plain text description
@@ -277,7 +275,7 @@ func Run(opts *Options, apiKey string) error {
 	result, err := agent.DescribeImages(ctx, imageParts, opts.Prompt, opts.Additional, opts.JSONOutput)
 	if err != nil {
 		s.Stop()
-		return fmt.Errorf("analysis failed: %v", err)
+		return fmt.Errorf("analysis failed: %w", err)
 	}
 
 	// Stop spinner
