@@ -1,3 +1,24 @@
+# BANANA CLI v1.0.7
+
+## What's New
+
+### Prompt File Support
+
+- `-p` flag now accepts a file path in addition to text
+- Useful for complex JSON prompts that are hard to escape in shell
+- Supports any text file: `.json`, `.md`, `.txt`, etc.
+
+```bash
+# Text prompt (as before)
+banana -p "a sunset over mountains"
+
+# Load prompt from file
+banana -p prompt.json -n 3
+banana -p ~/prompts/calligraphy.txt -ar 1:1
+```
+
+---
+
 # BANANA CLI v1.0.6
 
 ## What's New
