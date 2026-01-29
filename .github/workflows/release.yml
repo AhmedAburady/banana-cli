@@ -23,7 +23,7 @@ jobs:
       - name: Build binaries
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
-          LDFLAGS="-X github.com/AhmedAburady/banana-cli/cli.Version=$VERSION"
+          LDFLAGS="-X github.com/AhmedAburady/banana-cli/cli.version=$VERSION"
 
           # Linux
           GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o banana-linux-amd64 ./cmd/banana

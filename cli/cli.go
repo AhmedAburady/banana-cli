@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -13,8 +14,22 @@ import (
 	"golang.org/x/term"
 )
 
-// Version is set at build time via ldflags
-var Version = "dev"
+// version is set at build time via ldflags
+var version = "dev"
+
+// GetVersion returns the version from ldflags or go build info
+func GetVersion() string {
+	if version != "" && version != "dev" {
+		return version
+	}
+
+	// Get version from go install build info
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+
+	return "dev"
+}
 
 // Options holds CLI configuration
 type Options struct {
@@ -74,7 +89,7 @@ func ParseFlags() (*Options, bool) {
 
 // PrintVersion prints the version
 func PrintVersion() {
-	fmt.Printf("banana version %s\n", Version)
+	fmt.Printf("banana version %s\n", GetVersion())
 }
 
 // Validate validates the CLI options
