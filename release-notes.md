@@ -1,3 +1,28 @@
+# BANANA CLI v1.1.1
+
+## What's New
+
+### Replace Flag (`-r`)
+
+New `-r` flag preserves the input filename for the output when editing images.
+
+```bash
+# Without -r: generates "generated_1_20260201_143052.png"
+banana -i photo.png -p "make it cartoon"
+
+# With -r: outputs "photo.png" (replaces original)
+banana -i photo.png -p "make it cartoon" -r
+
+# With -r and multiple images: outputs "photo_1.png", "photo_2.png", etc.
+banana -i photo.png -p "make it cartoon" -r -n 3
+```
+
+**Notes:**
+- Only works with single input files (not folders)
+- When `-n > 1`, adds index suffix to preserve the original
+
+---
+
 # BANANA CLI v1.0.9
 
 ## What's New

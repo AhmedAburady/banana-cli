@@ -108,14 +108,16 @@ type GenerationResult struct {
 
 // Config holds the configuration for image generation
 type Config struct {
-	OutputFolder string
-	NumImages    int
-	Prompt       string
-	APIKey       string
-	AspectRatio  string
-	ImageSize    string
-	Grounding    bool
-	RefImages    []Part
+	OutputFolder     string
+	NumImages        int
+	Prompt           string
+	APIKey           string
+	AspectRatio      string
+	ImageSize        string
+	Grounding        bool
+	RefImages        []Part
+	RefInputPath     string // Original input path for -f flag
+	PreserveFilename bool   // Whether to preserve input filename for output
 }
 
 // Supported image extensions and their MIME types
@@ -339,7 +341,21 @@ func RunGeneration(config *Config) GenerationOutput {
 
 			// Save if successful
 			if result.Error == nil && result.ImageData != nil {
-				filename := fmt.Sprintf("generated_%d_%s.png", result.Index+1, time.Now().Format("20060102_150405"))
+				var filename string
+				if config.PreserveFilename && config.RefInputPath != "" {
+					// Use the input filename with .png extension
+					baseName := filepath.Base(config.RefInputPath)
+					ext := filepath.Ext(baseName)
+					nameWithoutExt := strings.TrimSuffix(baseName, ext)
+					if config.NumImages > 1 {
+						// Add index suffix for multiple images
+						filename = fmt.Sprintf("%s_%d.png", nameWithoutExt, result.Index+1)
+					} else {
+						filename = nameWithoutExt + ".png"
+					}
+				} else {
+					filename = fmt.Sprintf("generated_%d_%s.png", result.Index+1, time.Now().Format("20060102_150405"))
+				}
 				outputFile := filepath.Join(config.OutputFolder, filename)
 				if err := os.WriteFile(outputFile, result.ImageData, 0644); err != nil {
 					result.Error = fmt.Errorf("failed to save: %v", err)

@@ -35,15 +35,16 @@ func GetVersion() string {
 
 // Options holds CLI configuration
 type Options struct {
-	Prompt      string
-	Output      string
-	NumImages   int
-	AspectRatio string
-	ImageSize   string
-	Grounding   bool
-	RefInput    string // -i flag, triggers edit mode if set
-	Help        bool
-	Version     bool
+	Prompt           string
+	Output           string
+	NumImages        int
+	AspectRatio      string
+	ImageSize        string
+	Grounding        bool
+	RefInput         string // -i flag, triggers edit mode if set
+	PreserveFilename bool   // -r flag, preserve input filename for output (replace)
+	Help             bool
+	Version          bool
 }
 
 // Valid aspect ratios and image sizes
@@ -77,6 +78,7 @@ func ParseFlags() (*Options, bool) {
 	flag.StringVar(&opts.ImageSize, "s", "1K", "Image size: 1K, 2K, 4K")
 	flag.BoolVar(&opts.Grounding, "g", false, "Enable grounding with Google Search")
 	flag.StringVar(&opts.RefInput, "i", "", "Reference image/folder (enables edit mode)")
+	flag.BoolVar(&opts.PreserveFilename, "r", false, "Replace: use input filename for output (single file only)")
 	flag.BoolVar(&opts.Help, "help", false, "Show help message")
 	flag.BoolVar(&opts.Version, "version", false, "Show version")
 	flag.BoolVar(&opts.Version, "v", false, "Show version")
@@ -144,6 +146,10 @@ func (opts *Options) Validate() error {
 		}
 
 		if info.IsDir() {
+			// -r flag is only for single files, not folders
+			if opts.PreserveFilename {
+				return fmt.Errorf("-r flag only works with a single input file, not a folder")
+			}
 			count, _ := api.FindImagesInDir(opts.RefInput)
 			if count == 0 {
 				return fmt.Errorf("no images found in reference directory: %s", opts.RefInput)
@@ -151,6 +157,11 @@ func (opts *Options) Validate() error {
 		} else if !api.IsSupportedImage(opts.RefInput) {
 			return fmt.Errorf("unsupported image format: %s", opts.RefInput)
 		}
+	}
+
+	// -r requires -i to be set with a single file
+	if opts.PreserveFilename && opts.RefInput == "" {
+		return fmt.Errorf("-r flag requires -i with an input image file")
 	}
 
 	return nil
@@ -177,14 +188,16 @@ func Run(opts *Options, apiKey string) {
 
 	// Create config
 	config := &api.Config{
-		OutputFolder: opts.Output,
-		NumImages:    opts.NumImages,
-		Prompt:       opts.Prompt,
-		APIKey:       apiKey,
-		AspectRatio:  opts.AspectRatio,
-		ImageSize:    opts.ImageSize,
-		Grounding:    opts.Grounding,
-		RefImages:    refImages,
+		OutputFolder:     opts.Output,
+		NumImages:        opts.NumImages,
+		Prompt:           opts.Prompt,
+		APIKey:           apiKey,
+		AspectRatio:      opts.AspectRatio,
+		ImageSize:        opts.ImageSize,
+		Grounding:        opts.Grounding,
+		RefImages:        refImages,
+		RefInputPath:     opts.RefInput,
+		PreserveFilename: opts.PreserveFilename,
 	}
 
 	// Ensure output folder exists
@@ -261,6 +274,7 @@ Generate/Edit Flags:
   -s string    Image size: 1K, 2K, 4K (default "1K")
   -g           Enable grounding with Google Search
   -i string    Reference image/folder (enables edit mode)
+  -r           Replace: use input filename for output (single file only)
   --version    Show version
   --help       Show this help message
 
@@ -280,6 +294,7 @@ Examples:
   banana -p "a sunset over mountains" -n 3
   banana -p prompt.txt -n 3                      # load prompt from file
   banana -i ./photo.png -p "make it cartoon style"
+  banana -i ./photo.png -p "make it cartoon" -r  # output keeps name: photo.png
   banana -p "a futuristic city" -g -ar 16:9 -s 2K
   banana -i ./images/ -p "add rain effect" -n 2 -o ./output
   banana describe -i photo.jpg                   # analyze image style
