@@ -43,6 +43,7 @@ type Options struct {
 	Grounding        bool
 	RefInput         string // -i flag, triggers edit mode if set
 	PreserveFilename bool   // -r flag, preserve input filename for output (replace)
+	UseVertex        bool   // -vertex flag, use Vertex AI instead of Gemini API
 	Help             bool
 	Version          bool
 }
@@ -79,6 +80,7 @@ func ParseFlags() (*Options, bool) {
 	flag.BoolVar(&opts.Grounding, "g", false, "Enable grounding with Google Search")
 	flag.StringVar(&opts.RefInput, "i", "", "Reference image/folder (enables edit mode)")
 	flag.BoolVar(&opts.PreserveFilename, "r", false, "Replace: use input filename for output (single file only)")
+	flag.BoolVar(&opts.UseVertex, "vertex", false, "Use Vertex AI instead of Gemini API (requires gcloud auth)")
 	flag.BoolVar(&opts.Help, "help", false, "Show help message")
 	flag.BoolVar(&opts.Version, "version", false, "Show version")
 	flag.BoolVar(&opts.Version, "v", false, "Show version")
@@ -187,7 +189,7 @@ func Run(opts *Options, apiKey string) {
 	}
 
 	// Create config
-	config := &api.Config{
+	cfg := &api.Config{
 		OutputFolder:     opts.Output,
 		NumImages:        opts.NumImages,
 		Prompt:           opts.Prompt,
@@ -198,10 +200,11 @@ func Run(opts *Options, apiKey string) {
 		RefImages:        refImages,
 		RefInputPath:     opts.RefInput,
 		PreserveFilename: opts.PreserveFilename,
+		UseVertex:        opts.UseVertex,
 	}
 
 	// Ensure output folder exists
-	if err := os.MkdirAll(config.OutputFolder, 0755); err != nil {
+	if err := os.MkdirAll(cfg.OutputFolder, 0755); err != nil {
 		fmt.Printf("\033[31mError:\033[0m Failed to create output folder: %v\n", err)
 		os.Exit(1)
 	}
@@ -211,6 +214,9 @@ func Run(opts *Options, apiKey string) {
 	if opts.RefInput != "" {
 		modeText = "Editing"
 	}
+	if opts.UseVertex {
+		modeText += " (Vertex AI)"
+	}
 
 	s := spinner.New(spinner.CharSets[14], 80*time.Millisecond)
 	s.Suffix = fmt.Sprintf(" %s %d image(s)...", modeText, opts.NumImages)
@@ -218,7 +224,7 @@ func Run(opts *Options, apiKey string) {
 	s.Start()
 
 	// Run generation
-	output := api.RunGeneration(config)
+	output := api.RunGeneration(cfg)
 
 	// Stop spinner
 	s.Stop()
@@ -242,7 +248,7 @@ func Run(opts *Options, apiKey string) {
 	fmt.Printf("Done: %d success, %d failed (%.1fs)\n", successCount, errorCount, output.Elapsed.Seconds())
 
 	// Show output path as absolute if it was relative
-	outputPath := config.OutputFolder
+	outputPath := cfg.OutputFolder
 	if !filepath.IsAbs(outputPath) {
 		if abs, err := filepath.Abs(outputPath); err == nil {
 			outputPath = abs
@@ -275,6 +281,7 @@ Generate/Edit Flags:
   -g           Enable grounding with Google Search
   -i string    Reference image/folder (enables edit mode)
   -r           Replace: use input filename for output (single file only)
+  -vertex      Use Vertex AI instead of Gemini API (requires gcloud auth)
   --version    Show version
   --help       Show this help message
 

@@ -118,6 +118,7 @@ type Config struct {
 	RefImages        []Part
 	RefInputPath     string // Original input path for -f flag
 	PreserveFilename bool   // Whether to preserve input filename for output
+	UseVertex        bool   // Use Vertex AI instead of Gemini API
 }
 
 // Supported image extensions and their MIME types
@@ -337,7 +338,12 @@ func RunGeneration(config *Config) GenerationOutput {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			result := GenerateImage(config, index)
+			var result GenerationResult
+			if config.UseVertex {
+				result = GenerateImageVertex(config, index)
+			} else {
+				result = GenerateImage(config, index)
+			}
 
 			// Save if successful
 			if result.Error == nil && result.ImageData != nil {

@@ -1,3 +1,42 @@
+# BANANA CLI v1.1.2
+
+## What's New
+
+### Vertex AI Support (`-vertex`)
+
+Use Google Cloud's Vertex AI instead of the direct Gemini API. Perfect for enterprise users with GCP projects who want better quotas, IAM-based authentication, and no API key exposure.
+
+```bash
+# Set up (one-time)
+gcloud auth application-default login
+export GOOGLE_CLOUD_PROJECT="your-project-id"
+
+# Generate with Vertex AI
+banana -p "a sunset over mountains" -vertex
+
+# Edit with Vertex AI
+banana -i photo.png -p "make it watercolor" -vertex
+
+# Describe with Vertex AI
+banana describe -i photo.jpg -vertex
+```
+
+**Environment Variables:**
+| Variable | Required | Default |
+|----------|----------|---------|
+| `GOOGLE_CLOUD_PROJECT` | Yes | - |
+| `GOOGLE_CLOUD_LOCATION` | No | `global` |
+
+**Benefits:**
+- No API key in URLs - uses Google Cloud IAM authentication
+- Enterprise-tier quotas based on your GCP project
+- Works with service accounts for automation
+- Same models as direct API (`gemini-3-pro-image-preview`)
+
+**Required IAM Role:** `roles/aiplatform.user` (Vertex AI User)
+
+---
+
 # BANANA CLI v1.1.1
 
 ## What's New

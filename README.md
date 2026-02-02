@@ -142,6 +142,7 @@ Running `banana` without flags opens the interactive TUI.
 | `-g` | | bool | **Grounding** - Enable Google Search grounding | `false` |
 | `-i` | | string | **Input** - Reference image/folder for edit mode | *none* |
 | `-v` | `--version` | | Show version | |
+| | `-vertex` | bool | Use Vertex AI instead of Gemini API | `false` |
 | | `--help` | | Show help message | |
 
 ### Config Commands
@@ -389,6 +390,59 @@ This allows you to:
 - Use environment variables to temporarily override the saved key
 - Keep a default key in the config file for convenience
 - Use different keys for different projects via env vars
+
+---
+
+## Vertex AI Configuration (Alternative)
+
+Instead of using a Gemini API key, you can use **Vertex AI** with Google Cloud authentication. This is useful if you have a GCP project with better quotas or enterprise features.
+
+### Prerequisites
+
+1. A Google Cloud project with the Vertex AI API enabled
+2. A service account with the **Vertex AI User** role (or equivalent)
+3. Google Cloud CLI (`gcloud`) installed
+
+### Setup
+
+**Step 1: Authenticate with Google Cloud**
+```bash
+# Login with your Google account
+gcloud auth application-default login
+
+# Or use a service account
+gcloud auth activate-service-account --key-file=your-service-account.json
+export GOOGLE_APPLICATION_CREDENTIALS="path/to/your-service-account.json"
+```
+
+**Step 2: Set required environment variables**
+```bash
+# Required: Your GCP project ID
+export GOOGLE_CLOUD_PROJECT="your-project-id"
+
+# Optional: Location (defaults to global)
+export GOOGLE_CLOUD_LOCATION="global"
+```
+
+**Step 3: Use the `-vertex` flag**
+```bash
+banana -p "a beautiful sunset" -vertex
+banana -p "cyberpunk city" -n 5 -vertex -ar 16:9
+```
+
+### Environment Variables Summary
+
+| Variable | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `GOOGLE_CLOUD_PROJECT` | Yes | Your GCP project ID | - |
+| `GOOGLE_CLOUD_LOCATION` | No | GCP location for Vertex AI | `global` |
+
+### Benefits of Vertex AI
+
+- **No API key exposure** - Uses Google Cloud IAM authentication
+- **Enterprise quotas** - Higher rate limits based on your GCP project
+- **VPC Service Controls** - Network security features
+- **Audit logging** - Cloud Audit Logs integration
 
 ---
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"google.golang.org/genai"
 
@@ -35,13 +36,15 @@ type DescriptionResult struct {
 
 // DescribeAgent wraps the ADK agent for image description
 type DescribeAgent struct {
-	apiKey string
+	apiKey    string
+	useVertex bool
 }
 
 // NewDescribeAgent creates a new ADK-powered describe agent
-func NewDescribeAgent(ctx context.Context, apiKey string) (*DescribeAgent, error) {
+func NewDescribeAgent(ctx context.Context, apiKey string, useVertex bool) (*DescribeAgent, error) {
 	return &DescribeAgent{
-		apiKey: apiKey,
+		apiKey:    apiKey,
+		useVertex: useVertex,
 	}, nil
 }
 
@@ -104,9 +107,31 @@ func extractTextFromParts(parts []*genai.Part) string {
 
 // DescribeImages analyzes images using ADK agent
 func (a *DescribeAgent) DescribeImages(ctx context.Context, imageParts []*genai.Part, customPrompt string, additional string, jsonOutput bool) (*DescriptionResult, error) {
-	llmModel, err := gemini.NewModel(ctx, "gemini-3-pro-preview", &genai.ClientConfig{
-		APIKey: a.apiKey,
-	})
+	var clientConfig *genai.ClientConfig
+	if a.useVertex {
+		project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+		if project == "" {
+			project = os.Getenv("GCLOUD_PROJECT")
+		}
+		if project == "" {
+			return nil, fmt.Errorf("GOOGLE_CLOUD_PROJECT environment variable is required for Vertex AI")
+		}
+		location := os.Getenv("GOOGLE_CLOUD_LOCATION")
+		if location == "" {
+			location = "global"
+		}
+		clientConfig = &genai.ClientConfig{
+			Project:  project,
+			Location: location,
+			Backend:  genai.BackendVertexAI,
+		}
+	} else {
+		clientConfig = &genai.ClientConfig{
+			APIKey: a.apiKey,
+		}
+	}
+
+	llmModel, err := gemini.NewModel(ctx, "gemini-3-pro-preview", clientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create model: %w", err)
 	}

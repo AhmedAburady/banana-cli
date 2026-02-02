@@ -24,6 +24,7 @@ type Options struct {
 	Prompt     string // -p flag: custom prompt (overrides default)
 	Additional string // -a flag: additional instructions (appended to default)
 	JSONOutput bool   // -json flag: output as JSON (default: text)
+	UseVertex  bool   // -vertex flag: use Vertex AI instead of Gemini API
 	Help       bool   // --help flag
 }
 
@@ -37,6 +38,7 @@ func ParseFlags(args []string) (*Options, error) {
 	fs.StringVar(&opts.Prompt, "p", "", "Custom prompt (overrides default instruction)")
 	fs.StringVar(&opts.Additional, "a", "", "Additional instructions (appended to default)")
 	fs.BoolVar(&opts.JSONOutput, "json", false, "Output as JSON format")
+	fs.BoolVar(&opts.UseVertex, "vertex", false, "Use Vertex AI instead of Gemini API")
 	fs.BoolVar(&opts.Help, "help", false, "Show help message")
 
 	if err := fs.Parse(args); err != nil {
@@ -108,6 +110,7 @@ Flags:
   -p string    Custom prompt (completely overrides default instruction)
   -a string    Additional instructions (prepended to default instruction)
   -json        Output as structured JSON (default: plain text)
+  -vertex      Use Vertex AI instead of Gemini API (requires gcloud auth)
   --help       Show this help message
 
 Output Modes:
@@ -244,7 +247,7 @@ func loadSingleImage(filePath string) ([]*genai.Part, error) {
 }
 
 // Run executes the describe command
-func Run(opts *Options, apiKey string) error {
+func Run(opts *Options, apiKey string, useVertex bool) error {
 	// Validate options
 	if err := opts.Validate(); err != nil {
 		return err
@@ -265,7 +268,7 @@ func Run(opts *Options, apiKey string) error {
 
 	// Create agent and run analysis
 	ctx := context.Background()
-	agent, err := NewDescribeAgent(ctx, apiKey)
+	agent, err := NewDescribeAgent(ctx, apiKey, useVertex)
 	if err != nil {
 		s.Stop()
 		return fmt.Errorf("failed to create agent: %v", err)
@@ -326,7 +329,7 @@ func HandleDescribeCommand(args []string) {
 		os.Exit(1)
 	}
 
-	if err := Run(opts, apiKey); err != nil {
+	if err := Run(opts, apiKey, opts.UseVertex); err != nil {
 		fmt.Printf("\033[31mError:\033[0m %v\n", err)
 		os.Exit(1)
 	}
