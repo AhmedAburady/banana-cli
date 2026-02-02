@@ -293,9 +293,11 @@ Describe Flags:
   -json        Output as structured JSON format
 
 Config Commands:
-  banana config set-key <KEY>   Save your Gemini API key
-  banana config show            Show current configuration
-  banana config path            Show config file location
+  banana config set-key <KEY>       Save your Gemini API key
+  banana config set-project <ID>    Save your GCP project ID (for -vertex)
+  banana config set-location <LOC>  Save your GCP location (default: global)
+  banana config show                Show current configuration
+  banana config path                Show config file location
 
 Examples:
   banana -p "a sunset over mountains" -n 3
@@ -329,17 +331,40 @@ func HandleConfigCommand(args []string) bool {
 		fmt.Println("\033[32m✓\033[0m API key saved successfully")
 		fmt.Printf("  Location: %s\n", config.DefaultConfigPath())
 
+	case "set-project":
+		if len(args) < 3 {
+			fmt.Println("Usage: banana config set-project <GCP_PROJECT_ID>")
+			os.Exit(1)
+		}
+		if err := config.SaveGCPProject(args[2]); err != nil {
+			fmt.Printf("\033[31mError:\033[0m Failed to save GCP project: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("\033[32m✓\033[0m GCP project saved successfully")
+		fmt.Printf("  Project: %s\n", args[2])
+
+	case "set-location":
+		if len(args) < 3 {
+			fmt.Println("Usage: banana config set-location <GCP_LOCATION>")
+			os.Exit(1)
+		}
+		if err := config.SaveGCPLocation(args[2]); err != nil {
+			fmt.Printf("\033[31mError:\033[0m Failed to save GCP location: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("\033[32m✓\033[0m GCP location saved successfully")
+		fmt.Printf("  Location: %s\n", args[2])
+
 	case "show":
 		cfg, err := config.Load()
 		if err != nil {
 			fmt.Printf("\033[31mError:\033[0m Failed to load config: %v\n", err)
 			os.Exit(1)
 		}
+		// API Key
 		if cfg.APIKey == "" {
-			fmt.Println("No API key configured")
-			fmt.Println("Set one with: banana config set-key <YOUR_API_KEY>")
+			fmt.Println("API Key: (not set)")
 		} else {
-			// Mask the API key, showing only first 8 and last 4 chars
 			key := cfg.APIKey
 			masked := key
 			if len(key) > 12 {
@@ -347,13 +372,25 @@ func HandleConfigCommand(args []string) bool {
 			}
 			fmt.Printf("API Key: %s\n", masked)
 		}
+		// GCP Project
+		if cfg.GCPProject == "" {
+			fmt.Println("GCP Project: (not set)")
+		} else {
+			fmt.Printf("GCP Project: %s\n", cfg.GCPProject)
+		}
+		// GCP Location
+		if cfg.GCPLocation == "" {
+			fmt.Println("GCP Location: (not set, defaults to 'global')")
+		} else {
+			fmt.Printf("GCP Location: %s\n", cfg.GCPLocation)
+		}
 
 	case "path":
 		fmt.Println(config.DefaultConfigPath())
 
 	default:
 		fmt.Printf("Unknown config command: %s\n", args[1])
-		fmt.Println("Available commands: set-key, show, path")
+		fmt.Println("Available commands: set-key, set-project, set-location, show, path")
 		os.Exit(1)
 	}
 

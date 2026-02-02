@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"os"
 
+	"github.com/AhmedAburady/banana-cli/config"
 	"google.golang.org/genai"
 )
 
@@ -15,21 +15,15 @@ const (
 	VertexModel = "gemini-3-pro-image-preview"
 )
 
-// getVertexConfig returns project and location from environment variables
+// getVertexConfig returns project and location from env vars or config file
+// Priority: env vars > config file
 func getVertexConfig() (project, location string, err error) {
-	project = os.Getenv("GOOGLE_CLOUD_PROJECT")
+	project = config.GetGCPProject()
 	if project == "" {
-		project = os.Getenv("GCLOUD_PROJECT")
-	}
-	if project == "" {
-		return "", "", fmt.Errorf("GOOGLE_CLOUD_PROJECT environment variable is required for Vertex AI")
+		return "", "", fmt.Errorf("GCP project is required for Vertex AI. Set GOOGLE_CLOUD_PROJECT env var or run: banana config set-project <PROJECT_ID>")
 	}
 
-	location = os.Getenv("GOOGLE_CLOUD_LOCATION")
-	if location == "" {
-		location = "global" // Default location for Gemini 3 models
-	}
-
+	location = config.GetGCPLocation()
 	return project, location, nil
 }
 
@@ -83,6 +77,18 @@ func GenerateImageVertex(config *Config, index int) GenerationResult {
 	// Configure generation settings
 	genConfig := &genai.GenerateContentConfig{
 		ResponseModalities: []string{"TEXT", "IMAGE"},
+	}
+
+	// Add image configuration if aspect ratio or size is specified
+	if config.AspectRatio != "" || config.ImageSize != "" {
+		imgConfig := &genai.ImageConfig{}
+		if config.AspectRatio != "" {
+			imgConfig.AspectRatio = config.AspectRatio
+		}
+		if config.ImageSize != "" {
+			imgConfig.ImageSize = config.ImageSize
+		}
+		genConfig.ImageConfig = imgConfig
 	}
 
 	// Call the API

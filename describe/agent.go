@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 
+	"github.com/AhmedAburady/banana-cli/config"
 	"google.golang.org/genai"
 
 	"google.golang.org/adk/agent"
@@ -109,17 +109,11 @@ func extractTextFromParts(parts []*genai.Part) string {
 func (a *DescribeAgent) DescribeImages(ctx context.Context, imageParts []*genai.Part, customPrompt string, additional string, jsonOutput bool) (*DescriptionResult, error) {
 	var clientConfig *genai.ClientConfig
 	if a.useVertex {
-		project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+		project := config.GetGCPProject()
 		if project == "" {
-			project = os.Getenv("GCLOUD_PROJECT")
+			return nil, fmt.Errorf("GCP project is required for Vertex AI. Set GOOGLE_CLOUD_PROJECT env var or run: banana config set-project <PROJECT_ID>")
 		}
-		if project == "" {
-			return nil, fmt.Errorf("GOOGLE_CLOUD_PROJECT environment variable is required for Vertex AI")
-		}
-		location := os.Getenv("GOOGLE_CLOUD_LOCATION")
-		if location == "" {
-			location = "global"
-		}
+		location := config.GetGCPLocation()
 		clientConfig = &genai.ClientConfig{
 			Project:  project,
 			Location: location,

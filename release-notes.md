@@ -1,3 +1,42 @@
+# BANANA CLI v1.1.3
+
+## What's New
+
+### Persistent GCP Configuration
+
+Save your Vertex AI settings to the config file instead of using environment variables every time.
+
+```bash
+# Save GCP project and location (one-time setup)
+banana config set-project your-project-id
+banana config set-location global
+
+# View all settings
+banana config show
+```
+
+**New Config Commands:**
+| Command | Description |
+|---------|-------------|
+| `banana config set-project <ID>` | Save GCP project ID |
+| `banana config set-location <LOC>` | Save GCP location (default: global) |
+| `banana config show` | Display all configured settings |
+
+**Configuration Priority:**
+1. Environment variables (highest priority)
+2. Config file (`~/.config/banana/config.json`)
+3. Default values
+
+### Vertex AI Image Options
+
+The `-ar` (aspect ratio) and `-s` (image size) flags now work correctly with Vertex AI.
+
+```bash
+banana -p "a sunset" -vertex -ar 16:9 -s 2K
+```
+
+---
+
 # BANANA CLI v1.1.2
 
 ## What's New
@@ -9,7 +48,7 @@ Use Google Cloud's Vertex AI instead of the direct Gemini API. Perfect for enter
 ```bash
 # Set up (one-time)
 gcloud auth application-default login
-export GOOGLE_CLOUD_PROJECT="your-project-id"
+banana config set-project your-project-id
 
 # Generate with Vertex AI
 banana -p "a sunset over mountains" -vertex
@@ -21,11 +60,14 @@ banana -i photo.png -p "make it watercolor" -vertex
 banana describe -i photo.jpg -vertex
 ```
 
-**Environment Variables:**
-| Variable | Required | Default |
-|----------|----------|---------|
-| `GOOGLE_CLOUD_PROJECT` | Yes | - |
-| `GOOGLE_CLOUD_LOCATION` | No | `global` |
+**New Config Commands:**
+```bash
+banana config set-project <PROJECT_ID>   # Save GCP project
+banana config set-location <LOCATION>    # Save GCP location (default: global)
+banana config show                       # View all settings
+```
+
+**Configuration Priority:** Environment variables > Config file
 
 **Benefits:**
 - No API key in URLs - uses Google Cloud IAM authentication

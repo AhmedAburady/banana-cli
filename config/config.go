@@ -8,7 +8,9 @@ import (
 
 // Config holds the application configuration
 type Config struct {
-	APIKey string `json:"api_key"`
+	APIKey      string `json:"api_key"`
+	GCPProject  string `json:"gcp_project,omitempty"`
+	GCPLocation string `json:"gcp_location,omitempty"`
 }
 
 // DefaultConfigDir returns the default config directory
@@ -86,4 +88,56 @@ func GetAPIKey() string {
 		return ""
 	}
 	return cfg.APIKey
+}
+
+// GetGCPProject returns the GCP project from env vars or config file
+// Priority: GOOGLE_CLOUD_PROJECT > GCLOUD_PROJECT > config file
+func GetGCPProject() string {
+	if project := os.Getenv("GOOGLE_CLOUD_PROJECT"); project != "" {
+		return project
+	}
+	if project := os.Getenv("GCLOUD_PROJECT"); project != "" {
+		return project
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		return ""
+	}
+	return cfg.GCPProject
+}
+
+// GetGCPLocation returns the GCP location from env vars or config file
+// Priority: GOOGLE_CLOUD_LOCATION > config file > default "global"
+func GetGCPLocation() string {
+	if location := os.Getenv("GOOGLE_CLOUD_LOCATION"); location != "" {
+		return location
+	}
+
+	cfg, err := Load()
+	if err == nil && cfg.GCPLocation != "" {
+		return cfg.GCPLocation
+	}
+
+	return "global" // Default location
+}
+
+// SaveGCPProject saves the GCP project to config
+func SaveGCPProject(project string) error {
+	cfg, err := Load()
+	if err != nil {
+		cfg = &Config{}
+	}
+	cfg.GCPProject = project
+	return Save(cfg)
+}
+
+// SaveGCPLocation saves the GCP location to config
+func SaveGCPLocation(location string) error {
+	cfg, err := Load()
+	if err != nil {
+		cfg = &Config{}
+	}
+	cfg.GCPLocation = location
+	return Save(cfg)
 }

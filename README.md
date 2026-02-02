@@ -415,13 +415,18 @@ gcloud auth activate-service-account --key-file=your-service-account.json
 export GOOGLE_APPLICATION_CREDENTIALS="path/to/your-service-account.json"
 ```
 
-**Step 2: Set required environment variables**
-```bash
-# Required: Your GCP project ID
-export GOOGLE_CLOUD_PROJECT="your-project-id"
+**Step 2: Configure your GCP project**
 
-# Optional: Location (defaults to global)
-export GOOGLE_CLOUD_LOCATION="global"
+Option A: Save to config file (recommended)
+```bash
+banana config set-project your-project-id
+banana config set-location global  # optional, defaults to global
+```
+
+Option B: Use environment variables
+```bash
+export GOOGLE_CLOUD_PROJECT="your-project-id"
+export GOOGLE_CLOUD_LOCATION="global"  # optional
 ```
 
 **Step 3: Use the `-vertex` flag**
@@ -430,12 +435,14 @@ banana -p "a beautiful sunset" -vertex
 banana -p "cyberpunk city" -n 5 -vertex -ar 16:9
 ```
 
-### Environment Variables Summary
+### Configuration Priority
 
-| Variable | Required | Description | Default |
-|----------|----------|-------------|---------|
-| `GOOGLE_CLOUD_PROJECT` | Yes | Your GCP project ID | - |
-| `GOOGLE_CLOUD_LOCATION` | No | GCP location for Vertex AI | `global` |
+Settings are loaded in this order (first found wins):
+
+| Setting | Env Variable | Config Command | Default |
+|---------|--------------|----------------|---------|
+| GCP Project | `GOOGLE_CLOUD_PROJECT` | `banana config set-project` | - |
+| GCP Location | `GOOGLE_CLOUD_LOCATION` | `banana config set-location` | `global` |
 
 ### Benefits of Vertex AI
 
