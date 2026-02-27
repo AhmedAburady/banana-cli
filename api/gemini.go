@@ -16,8 +16,17 @@ import (
 )
 
 const (
-	GeminiURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent"
+	// Model name constants
+	ModelPro   = "gemini-3-pro-image-preview"
+	ModelFlash = "gemini-3.1-flash-image-preview"
+
+	geminiBaseURL = "https://generativelanguage.googleapis.com/v1beta/models/"
 )
+
+// GeminiURL builds the full API endpoint for a given model name.
+func GeminiURL(model string) string {
+	return geminiBaseURL + model + ":generateContent"
+}
 
 // Shared HTTP client with connection pooling and timeouts
 var httpClient = &http.Client{
@@ -50,14 +59,22 @@ type ImageConfig struct {
 }
 
 type GenerationConfig struct {
-	ResponseModalities []string    `json:"responseModalities"`
-	ImageConfig        ImageConfig `json:"imageConfig"`
+	ResponseModalities []string        `json:"responseModalities"`
+	ImageConfig        ImageConfig     `json:"imageConfig"`
+	ThinkingConfig     *ThinkingConfig `json:"thinkingConfig,omitempty"`
 }
 
 type GoogleSearch struct{}
 
+type ImageSearch struct{}
+
 type Tool struct {
 	GoogleSearch *GoogleSearch `json:"googleSearch,omitempty"`
+	ImageSearch  *ImageSearch  `json:"imageSearch,omitempty"`
+}
+
+type ThinkingConfig struct {
+	ThinkingLevel string `json:"thinkingLevel"`
 }
 
 type GeminiRequest struct {
@@ -119,6 +136,9 @@ type Config struct {
 	RefInputPath     string // Original input path for -f flag
 	PreserveFilename bool   // Whether to preserve input filename for output
 	UseVertex        bool   // Use Vertex AI instead of Gemini API
+	Model            string // Full model name (e.g. ModelPro, ModelFlash)
+	ThinkingLevel    string // "MINIMAL" or "HIGH" (empty = omit from request)
+	ImageSearch      bool   // Enable image search grounding tool
 }
 
 // Supported image extensions and their MIME types
@@ -415,8 +435,23 @@ func GenerateImage(config *Config, index int) GenerationResult {
 		},
 	}
 
+	// Add tools (google search, image search)
+	var tools []Tool
 	if config.Grounding {
-		request.Tools = []Tool{{GoogleSearch: &GoogleSearch{}}}
+		tools = append(tools, Tool{GoogleSearch: &GoogleSearch{}})
+	}
+	if config.ImageSearch {
+		tools = append(tools, Tool{ImageSearch: &ImageSearch{}})
+	}
+	if len(tools) > 0 {
+		request.Tools = tools
+	}
+
+	// Add thinking config if specified
+	if config.ThinkingLevel != "" {
+		request.GenerationConfig.ThinkingConfig = &ThinkingConfig{
+			ThinkingLevel: config.ThinkingLevel,
+		}
 	}
 
 	jsonData, err := json.Marshal(request)
@@ -424,8 +459,8 @@ func GenerateImage(config *Config, index int) GenerationResult {
 		return GenerationResult{Index: index, Error: fmt.Errorf("failed to marshal request: %v", err)}
 	}
 
-	// Build URL with API key
-	url := fmt.Sprintf("%s?key=%s", GeminiURL, config.APIKey)
+	// Build URL with model and API key
+	url := fmt.Sprintf("%s?key=%s", GeminiURL(config.Model), config.APIKey)
 
 	// Make request using shared client with connection pooling
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))

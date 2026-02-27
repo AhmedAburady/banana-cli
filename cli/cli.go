@@ -33,6 +33,15 @@ func GetVersion() string {
 	return "dev"
 }
 
+// stringSlice implements flag.Value to allow repeating a flag (e.g. -i a.png -i b.png)
+type stringSlice []string
+
+func (s *stringSlice) String() string { return strings.Join(*s, ", ") }
+func (s *stringSlice) Set(value string) error {
+	*s = append(*s, value)
+	return nil
+}
+
 // Options holds CLI configuration
 type Options struct {
 	Prompt           string
@@ -41,9 +50,12 @@ type Options struct {
 	AspectRatio      string
 	ImageSize        string
 	Grounding        bool
-	RefInput         string // -i flag, triggers edit mode if set
-	PreserveFilename bool   // -r flag, preserve input filename for output (replace)
-	UseVertex        bool   // -vertex flag, use Vertex AI instead of Gemini API
+	RefInputs        []string // -i flag(s), triggers edit mode if set
+	PreserveFilename bool     // -r flag, preserve input filename for output (replace)
+	UseVertex        bool     // -vertex flag, use Vertex AI instead of Gemini API
+	Model            string   // -m flag, "pro" or "flash"
+	ThinkingLevel    string   // -t flag, "minimal" or "high"
+	ImageSearch      bool     // -is flag, enable image search grounding
 	Help             bool
 	Version          bool
 }
@@ -66,6 +78,12 @@ var (
 	validImageSizes = map[string]bool{
 		"1K": true, "2K": true, "4K": true,
 	}
+	validModels = map[string]bool{
+		"pro": true, "flash": true,
+	}
+	validThinkingLevels = map[string]bool{
+		"minimal": true, "high": true,
+	}
 )
 
 // ParseFlags parses CLI flags and returns options and whether CLI mode is active
@@ -78,14 +96,23 @@ func ParseFlags() (*Options, bool) {
 	flag.StringVar(&opts.AspectRatio, "ar", "", "Aspect ratio (default: Auto)")
 	flag.StringVar(&opts.ImageSize, "s", "1K", "Image size: 1K, 2K, 4K")
 	flag.BoolVar(&opts.Grounding, "g", false, "Enable grounding with Google Search")
-	flag.StringVar(&opts.RefInput, "i", "", "Reference image/folder (enables edit mode)")
+	flag.Var((*stringSlice)(&opts.RefInputs), "i", "Reference image/folder, repeatable (enables edit mode)")
 	flag.BoolVar(&opts.PreserveFilename, "r", false, "Replace: use input filename for output (single file only)")
 	flag.BoolVar(&opts.UseVertex, "vertex", false, "Use Vertex AI instead of Gemini API (requires gcloud auth)")
+	flag.StringVar(&opts.Model, "m", "pro", "Model: pro, flash")
+	flag.StringVar(&opts.ThinkingLevel, "t", "minimal", "Thinking level: minimal, high")
+	flag.BoolVar(&opts.ImageSearch, "is", false, "Enable Image Search grounding")
 	flag.BoolVar(&opts.Help, "help", false, "Show help message")
 	flag.BoolVar(&opts.Version, "version", false, "Show version")
 	flag.BoolVar(&opts.Version, "v", false, "Show version")
 
 	flag.Parse()
+
+	// When -i is last and uses a glob (e.g. -i *.png), the shell expands it.
+	// The flag captures the first file; remaining files land in flag.Args().
+	if len(opts.RefInputs) > 0 && len(flag.Args()) > 0 {
+		opts.RefInputs = append(opts.RefInputs, flag.Args()...)
+	}
 
 	// CLI mode is active if prompt is provided
 	cliMode := opts.Prompt != ""
@@ -120,7 +147,9 @@ func (opts *Options) Validate() error {
 
 	// Expand tilde in paths
 	opts.Output = api.ExpandTilde(opts.Output)
-	opts.RefInput = api.ExpandTilde(opts.RefInput)
+	for i, ref := range opts.RefInputs {
+		opts.RefInputs[i] = api.ExpandTilde(ref)
+	}
 
 	// Validate number of images
 	if opts.NumImages < 1 || opts.NumImages > 20 {
@@ -137,33 +166,48 @@ func (opts *Options) Validate() error {
 		return fmt.Errorf("invalid image size: %s (valid: 1K, 2K, 4K)", opts.ImageSize)
 	}
 
-	// Validate reference input if provided (edit mode)
-	if opts.RefInput != "" {
-		info, err := os.Stat(opts.RefInput)
+	// Validate model
+	if !validModels[opts.Model] {
+		return fmt.Errorf("invalid model: %s (valid: pro, flash)", opts.Model)
+	}
+
+	// Validate thinking level
+	if !validThinkingLevels[opts.ThinkingLevel] {
+		return fmt.Errorf("invalid thinking level: %s (valid: minimal, high)", opts.ThinkingLevel)
+	}
+
+	// Validate reference inputs if provided (edit mode)
+	for _, ref := range opts.RefInputs {
+		info, err := os.Stat(ref)
 		if os.IsNotExist(err) {
-			return fmt.Errorf("reference path does not exist: %s", opts.RefInput)
+			return fmt.Errorf("reference path does not exist: %s", ref)
 		}
 		if err != nil {
 			return fmt.Errorf("cannot access reference path: %v", err)
 		}
 
 		if info.IsDir() {
-			// -r flag is only for single files, not folders
-			if opts.PreserveFilename {
-				return fmt.Errorf("-r flag only works with a single input file, not a folder")
-			}
-			count, _ := api.FindImagesInDir(opts.RefInput)
+			count, _ := api.FindImagesInDir(ref)
 			if count == 0 {
-				return fmt.Errorf("no images found in reference directory: %s", opts.RefInput)
+				return fmt.Errorf("no images found in reference directory: %s", ref)
 			}
-		} else if !api.IsSupportedImage(opts.RefInput) {
-			return fmt.Errorf("unsupported image format: %s", opts.RefInput)
+		} else if !api.IsSupportedImage(ref) {
+			return fmt.Errorf("unsupported image format: %s", ref)
 		}
 	}
 
-	// -r requires -i to be set with a single file
-	if opts.PreserveFilename && opts.RefInput == "" {
-		return fmt.Errorf("-r flag requires -i with an input image file")
+	// -r requires exactly one -i with a single file (not a folder)
+	if opts.PreserveFilename {
+		if len(opts.RefInputs) == 0 {
+			return fmt.Errorf("-r flag requires -i with an input image file")
+		}
+		if len(opts.RefInputs) > 1 {
+			return fmt.Errorf("-r flag only works with a single input file, not multiple")
+		}
+		info, _ := os.Stat(opts.RefInputs[0])
+		if info != nil && info.IsDir() {
+			return fmt.Errorf("-r flag only works with a single input file, not a folder")
+		}
 	}
 
 	return nil
@@ -179,13 +223,31 @@ func Run(opts *Options, apiKey string) {
 
 	// Load reference images if in edit mode
 	var refImages []api.Part
-	if opts.RefInput != "" {
-		var err error
-		refImages, err = api.LoadReferences(opts.RefInput)
+	for _, ref := range opts.RefInputs {
+		parts, err := api.LoadReferences(ref)
 		if err != nil {
 			fmt.Printf("\033[31mError:\033[0m Failed to load references: %v\n", err)
 			os.Exit(1)
 		}
+		refImages = append(refImages, parts...)
+	}
+
+	// Resolve model name
+	modelName := api.ModelPro
+	if opts.Model == "flash" {
+		modelName = api.ModelFlash
+	}
+
+	// Thinking config is only supported on flash model
+	thinkingLevel := ""
+	if opts.Model == "flash" {
+		thinkingLevel = strings.ToUpper(opts.ThinkingLevel)
+	}
+
+	// RefInputPath is used by -r for filename preservation (single file only)
+	refInputPath := ""
+	if len(opts.RefInputs) == 1 {
+		refInputPath = opts.RefInputs[0]
 	}
 
 	// Create config
@@ -198,9 +260,12 @@ func Run(opts *Options, apiKey string) {
 		ImageSize:        opts.ImageSize,
 		Grounding:        opts.Grounding,
 		RefImages:        refImages,
-		RefInputPath:     opts.RefInput,
+		RefInputPath:     refInputPath,
 		PreserveFilename: opts.PreserveFilename,
 		UseVertex:        opts.UseVertex,
+		Model:            modelName,
+		ThinkingLevel:    thinkingLevel,
+		ImageSearch:      opts.ImageSearch,
 	}
 
 	// Ensure output folder exists
@@ -211,12 +276,14 @@ func Run(opts *Options, apiKey string) {
 
 	// Start spinner (CharSet 14 = braille dots)
 	modeText := "Generating"
-	if opts.RefInput != "" {
+	if len(opts.RefInputs) > 0 {
 		modeText = "Editing"
 	}
+	modeText += fmt.Sprintf(" (%s", opts.Model)
 	if opts.UseVertex {
-		modeText += " (Vertex AI)"
+		modeText += ", Vertex AI"
 	}
+	modeText += ")"
 
 	s := spinner.New(spinner.CharSets[14], 80*time.Millisecond)
 	s.Suffix = fmt.Sprintf(" %s %d image(s)...", modeText, opts.NumImages)
@@ -278,8 +345,11 @@ Generate/Edit Flags:
   -n int       Number of images (default 1)
   -ar string   Aspect ratio (default: Auto)
   -s string    Image size: 1K, 2K, 4K (default "1K")
+  -m string    Model: pro, flash (default "pro")
+  -t string    Thinking level: minimal, high (default "minimal")
   -g           Enable grounding with Google Search
-  -i string    Reference image/folder (enables edit mode)
+  -is          Enable grounding with Image Search
+  -i string    Reference image/folder, repeatable (put last when using globs)
   -r           Replace: use input filename for output (single file only)
   -vertex      Use Vertex AI instead of Gemini API (requires gcloud auth)
   --version    Show version
@@ -301,13 +371,18 @@ Config Commands:
 
 Examples:
   banana -p "a sunset over mountains" -n 3
-  banana -p prompt.txt -n 3                      # load prompt from file
+  banana -p prompt.txt -n 3                          # load prompt from file
+  banana -p "a sunset" -m flash                      # use flash model
+  banana -p "a sunset" -m flash -t high              # flash with high thinking
+  banana -p "a cat in supreme hoodie" -is             # with image search
   banana -i ./photo.png -p "make it cartoon style"
-  banana -i ./photo.png -p "make it cartoon" -r  # output keeps name: photo.png
+  banana -i a.png -i b.png -p "merge these styles"   # multiple reference images
+  banana -p "add rain" -s 2K -i *.png                # glob (put -i last)
+  banana -i ./photo.png -p "make it cartoon" -r      # output keeps name: photo.png
   banana -p "a futuristic city" -g -ar 16:9 -s 2K
   banana -i ./images/ -p "add rain effect" -n 2 -o ./output
-  banana describe -i photo.jpg                   # analyze image style
-  banana describe -i ./styles/ -o style.json    # analyze folder of images
+  banana describe -i photo.jpg                       # analyze image style
+  banana describe -i ./styles/ -o style.json         # analyze folder of images
 `
 	fmt.Print(help)
 }

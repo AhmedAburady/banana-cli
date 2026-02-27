@@ -9,12 +9,6 @@ import (
 	"google.golang.org/genai"
 )
 
-const (
-	// VertexModel is the model name for Vertex AI image generation
-	// Same model as direct Gemini API (gemini-3-pro-image-preview / nano banana)
-	VertexModel = "gemini-3-pro-image-preview"
-)
-
 // getVertexConfig returns project and location from env vars or config file
 // Priority: env vars > config file
 func getVertexConfig() (project, location string, err error) {
@@ -91,8 +85,20 @@ func GenerateImageVertex(config *Config, index int) GenerationResult {
 		genConfig.ImageConfig = imgConfig
 	}
 
+	// Add tools (google search grounding)
+	if config.Grounding {
+		genConfig.Tools = append(genConfig.Tools, &genai.Tool{GoogleSearch: &genai.GoogleSearch{}})
+	}
+
+	// Add thinking config if specified
+	if config.ThinkingLevel != "" {
+		genConfig.ThinkingConfig = &genai.ThinkingConfig{
+			ThinkingLevel: genai.ThinkingLevel(config.ThinkingLevel),
+		}
+	}
+
 	// Call the API
-	resp, err := client.Models.GenerateContent(ctx, VertexModel, contents, genConfig)
+	resp, err := client.Models.GenerateContent(ctx, config.Model, contents, genConfig)
 	if err != nil {
 		return GenerationResult{Index: index, Error: fmt.Errorf("generation failed: %w", err)}
 	}
