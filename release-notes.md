@@ -1,3 +1,42 @@
+# BANANA CLI v1.1.4
+
+## What's New
+
+### TUI Now Matches CLI Features
+
+The interactive TUI now exposes **Model selection**, **Thinking Level**, and **Image Search** — previously only available via CLI flags.
+
+- **Model**: Switch between Pro and Flash directly in the form
+- **Thinking Level**: Choose Minimal or High (Flash only)
+- **Image Search**: Enable image search grounding (Flash only)
+
+Thinking Level and Image Search automatically appear when you select Flash, and hide when you switch back to Pro.
+
+### 2-Column Form Layout
+
+Compact fields (selects and toggles) now render side-by-side, cutting vertical space significantly:
+
+```
+Number of Images          Image Size
+> 5                       1K  2K  4K
+
+Model                     Thinking Level
+Pro  Flash                Minimal  High
+
+Google Search             Image Search
+ON  OFF                   ON  OFF
+```
+
+### Responsive Terminal Sizing
+
+All views (menu, API key, forms) now adapt to your terminal dimensions instead of using hardcoded sizes. No more cropped content on small terminals or wasted space on large ones.
+
+### Cleaner Form UI
+
+Removed inline description text from all fields. Hints now live exclusively in input placeholders where they disappear as you type.
+
+---
+
 # BANANA CLI v1.1.3
 
 ## What's New

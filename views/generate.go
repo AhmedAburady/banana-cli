@@ -23,8 +23,12 @@ type GenerateModel struct {
 
 // NewGenerateModel creates a new generate model
 func NewGenerateModel() GenerateModel {
+	form := ui.BuildForm(ui.GenerateFormConfig())
+	// Thinking level and Image Search are Flash-only; Pro is default, so hide initially
+	form.SetFieldHidden("thinking", true)
+	form.SetFieldHidden("imagesearch", true)
 	return GenerateModel{
-		form:   ui.BuildForm(ui.GenerateFormConfig()),
+		form:   form,
 		styles: ui.DefaultFormStyles(),
 	}
 }
@@ -50,6 +54,11 @@ func (m GenerateModel) Update(msg tea.Msg) (GenerateModel, tea.Cmd) {
 	}
 
 	cmd := m.form.Update(msg)
+
+	// Thinking level and Image Search are Flash-only features
+	isPro := m.form.GetString("model") != "flash"
+	m.form.SetFieldHidden("thinking", isPro)
+	m.form.SetFieldHidden("imagesearch", isPro)
 
 	if m.form.Submitted() {
 		return m, m.submit()

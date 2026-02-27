@@ -26,8 +26,12 @@ const defaultEditPrompt = "A 2D vector art pattern in the style of the reference
 
 // NewEditModel creates a new edit model
 func NewEditModel() EditModel {
+	form := ui.BuildForm(ui.EditFormConfig())
+	// Thinking level and Image Search are Flash-only; Pro is default, so hide initially
+	form.SetFieldHidden("thinking", true)
+	form.SetFieldHidden("imagesearch", true)
 	return EditModel{
-		form:   ui.BuildForm(ui.EditFormConfig()),
+		form:   form,
 		styles: ui.DefaultFormStyles(),
 	}
 }
@@ -53,6 +57,11 @@ func (m EditModel) Update(msg tea.Msg) (EditModel, tea.Cmd) {
 	}
 
 	cmd := m.form.Update(msg)
+
+	// Thinking level and Image Search are Flash-only features
+	isPro := m.form.GetString("model") != "flash"
+	m.form.SetFieldHidden("thinking", isPro)
+	m.form.SetFieldHidden("imagesearch", isPro)
 
 	if m.form.Submitted() {
 		return m, m.submit()

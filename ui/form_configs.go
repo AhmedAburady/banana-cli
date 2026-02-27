@@ -8,18 +8,19 @@ type FormConfig struct {
 
 // FieldConfig defines a field configuration
 type FieldConfig struct {
-	Type        FieldType
-	Key         string
-	Label       string
-	Description string
-	Placeholder string
-	Default     string
-	BoolDefault bool
-	Lines       int            // For textarea
-	DirsOnly    bool           // For path
-	AllowedExts []string       // For path
-	Options     []SelectOption // For select
-	DefaultIdx  int            // For select
+	Type           FieldType
+	Key            string
+	Label          string
+	Description    string
+	Placeholder    string
+	Default        string
+	BoolDefault    bool
+	Lines          int            // For textarea
+	DirsOnly       bool           // For path
+	AllowedExts    []string       // For path
+	Options        []SelectOption // For select
+	DefaultIdx     int            // For select
+	InlineWithPrev bool           // Render side-by-side with previous field
 }
 
 // Common field configs shared between forms
@@ -28,8 +29,7 @@ var (
 		Type:        FieldPath,
 		Key:         "output",
 		Label:       "Output Folder",
-		Description: "Where to save generated images",
-		Placeholder: ".",
+		Placeholder: "./output",
 		Default:     ".",
 		DirsOnly:    true,
 	}
@@ -38,8 +38,7 @@ var (
 		Type:        FieldInput,
 		Key:         "num",
 		Label:       "Number of Images",
-		Description: "How many images to generate (1-20)",
-		Placeholder: "5",
+		Placeholder: "1-20",
 		Default:     "5",
 	}
 
@@ -52,19 +51,44 @@ var (
 	}
 
 	ImageSizeField = FieldConfig{
+		Type:           FieldSelect,
+		Key:            "size",
+		Label:          "Image Size",
+		Options:        ImageSizeOptions(),
+		DefaultIdx:     1, // 2K default
+		InlineWithPrev: true,
+	}
+
+	ModelField = FieldConfig{
 		Type:       FieldSelect,
-		Key:        "size",
-		Label:      "Image Size",
-		Options:    ImageSizeOptions(),
-		DefaultIdx: 1, // 2K default
+		Key:        "model",
+		Label:      "Model",
+		Options:    ModelOptions(),
+		DefaultIdx: 0, // Pro
+	}
+
+	ThinkingLevelField = FieldConfig{
+		Type:           FieldSelect,
+		Key:            "thinking",
+		Label:          "Thinking Level",
+		Options:        ThinkingLevelOptions(),
+		DefaultIdx:     0, // Minimal
+		InlineWithPrev: true,
 	}
 
 	GroundingField = FieldConfig{
 		Type:        FieldToggle,
 		Key:         "grounding",
-		Label:       "Grounding",
-		Description: "Enable Google Search grounding",
+		Label:       "Google Search",
 		BoolDefault: false,
+	}
+
+	ImageSearchField = FieldConfig{
+		Type:           FieldToggle,
+		Key:            "imagesearch",
+		Label:          "Image Search",
+		BoolDefault:    false,
+		InlineWithPrev: true,
 	}
 )
 
@@ -74,18 +98,20 @@ func GenerateFormConfig() FormConfig {
 		Title: "Generate Image",
 		Fields: []FieldConfig{
 			OutputFolderField,
-			NumImagesField,
 			{
 				Type:        FieldTextArea,
 				Key:         "prompt",
 				Label:       "Prompt",
-				Description: "Describe what you want to generate",
 				Placeholder: "A beautiful sunset over mountains...",
 				Lines:       3,
 			},
-			AspectRatioField,
+			NumImagesField,
 			ImageSizeField,
+			AspectRatioField,
+			ModelField,
+			ThinkingLevelField,
 			GroundingField,
+			ImageSearchField,
 		},
 	}
 }
@@ -101,25 +127,26 @@ func EditFormConfig() FormConfig {
 				Type:        FieldPath,
 				Key:         "ref",
 				Label:       "Reference Input",
-				Description: "Folder or image file",
 				Placeholder: "./refs or ./image.png",
 				Default:     "",
 				DirsOnly:    false,
 				AllowedExts: imageExts,
 			},
 			OutputFolderField,
-			NumImagesField,
 			{
 				Type:        FieldTextArea,
 				Key:         "prompt",
 				Label:       "Prompt",
-				Description: "Editing instructions for the image",
 				Placeholder: "A 2D vector art pattern inspired by the reference...",
 				Lines:       3,
 			},
-			AspectRatioField,
+			NumImagesField,
 			ImageSizeField,
+			AspectRatioField,
+			ModelField,
+			ThinkingLevelField,
 			GroundingField,
+			ImageSearchField,
 		},
 	}
 }
@@ -140,6 +167,10 @@ func BuildForm(config FormConfig) *Form {
 			form.AddToggle(field.Key, field.Label, field.Description, field.BoolDefault)
 		case FieldPath:
 			form.AddPath(field.Key, field.Label, field.Description, field.Placeholder, field.Default, field.DirsOnly, field.AllowedExts)
+		}
+		// Propagate InlineWithPrev to the FormField
+		if field.InlineWithPrev {
+			form.Fields[len(form.Fields)-1].InlineWithPrev = true
 		}
 	}
 

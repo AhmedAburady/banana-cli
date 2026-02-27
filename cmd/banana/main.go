@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -172,15 +173,27 @@ func (m Model) updateGenerateView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Handle form submission
 	if submit, ok := msg.(views.GenerateSubmitMsg); ok {
+		modelName := api.ModelPro
+		thinkingLevel := ""
+		imageSearch := false
+		if submit.Model == "flash" {
+			modelName = api.ModelFlash
+			thinkingLevel = strings.ToUpper(submit.ThinkingLevel)
+			imageSearch = submit.ImageSearch
+		}
+
 		config := &api.Config{
-			OutputFolder: submit.OutputFolder,
-			NumImages:    submit.NumImages,
-			Prompt:       submit.Prompt,
-			APIKey:       m.apiKey,
-			AspectRatio:  submit.AspectRatio,
-			ImageSize:    submit.ImageSize,
-			Grounding:    submit.Grounding,
-			RefImages:    nil, // No reference images for generate
+			OutputFolder:  submit.OutputFolder,
+			NumImages:     submit.NumImages,
+			Prompt:        submit.Prompt,
+			APIKey:        m.apiKey,
+			AspectRatio:   submit.AspectRatio,
+			ImageSize:     submit.ImageSize,
+			Model:         modelName,
+			ThinkingLevel: thinkingLevel,
+			Grounding:     submit.Grounding,
+			ImageSearch:   imageSearch,
+			RefImages:     nil, // No reference images for generate
 		}
 
 		m.currentView = ProcessingView
@@ -220,15 +233,27 @@ func (m Model) updateEditView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		modelName := api.ModelPro
+		thinkingLevel := ""
+		imageSearch := false
+		if submit.Model == "flash" {
+			modelName = api.ModelFlash
+			thinkingLevel = strings.ToUpper(submit.ThinkingLevel)
+			imageSearch = submit.ImageSearch
+		}
+
 		config := &api.Config{
-			OutputFolder: submit.OutputFolder,
-			NumImages:    submit.NumImages,
-			Prompt:       submit.Prompt,
-			APIKey:       m.apiKey,
-			AspectRatio:  submit.AspectRatio,
-			ImageSize:    submit.ImageSize,
-			Grounding:    submit.Grounding,
-			RefImages:    refImages,
+			OutputFolder:  submit.OutputFolder,
+			NumImages:     submit.NumImages,
+			Prompt:        submit.Prompt,
+			APIKey:        m.apiKey,
+			AspectRatio:   submit.AspectRatio,
+			ImageSize:     submit.ImageSize,
+			Model:         modelName,
+			ThinkingLevel: thinkingLevel,
+			Grounding:     submit.Grounding,
+			ImageSearch:   imageSearch,
+			RefImages:     refImages,
 		}
 
 		m.currentView = ProcessingView
@@ -334,8 +359,8 @@ func (m Model) renderMenuView() string {
 	banner := ui.RenderGradientBanner()
 	subtitle := ui.RenderSubtitle()
 
-	// Center the banner within a fixed width container
-	bannerStyle := lipgloss.NewStyle().Width(108).Align(lipgloss.Center)
+	w := min(110, m.width-4)
+	bannerStyle := lipgloss.NewStyle().Width(w - 2).Align(lipgloss.Center)
 	centeredBanner := bannerStyle.Render(banner)
 
 	header := lipgloss.JoinVertical(lipgloss.Center,
@@ -352,7 +377,7 @@ func (m Model) renderMenuView() string {
 		menuContent,
 	)
 
-	window := ui.WindowStyle.Width(110).Render(content)
+	window := ui.WindowStyle.Width(w).Render(content)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, window)
 }
 
@@ -360,7 +385,8 @@ func (m Model) renderAPIKeyView() string {
 	banner := ui.RenderGradientBanner()
 	subtitle := ui.RenderSubtitle()
 
-	bannerStyle := lipgloss.NewStyle().Width(108).Align(lipgloss.Center)
+	w := min(110, m.width-4)
+	bannerStyle := lipgloss.NewStyle().Width(w - 2).Align(lipgloss.Center)
 	centeredBanner := bannerStyle.Render(banner)
 
 	header := lipgloss.JoinVertical(lipgloss.Center,
@@ -375,12 +401,13 @@ func (m Model) renderAPIKeyView() string {
 		m.apiKeyModel.View(),
 	)
 
-	window := ui.WindowStyle.Width(110).Render(content)
+	window := ui.WindowStyle.Width(w).Render(content)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, window)
 }
 
 func (m Model) renderFormView(formContent string) string {
-	window := ui.WindowStyle.Width(80).Height(32).Render(formContent)
+	w := min(80, m.width-4)
+	window := ui.WindowStyle.Width(w).Render(formContent)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, window)
 }
 

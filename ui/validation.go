@@ -21,12 +21,15 @@ func (e ValidationError) Error() string {
 
 // GenerateFormData holds validated data for generate form
 type GenerateFormData struct {
-	OutputFolder string
-	NumImages    int
-	Prompt       string
-	AspectRatio  string
-	ImageSize    string
-	Grounding    bool
+	OutputFolder  string
+	NumImages     int
+	Prompt        string
+	AspectRatio   string
+	ImageSize     string
+	Model         string
+	ThinkingLevel string
+	Grounding     bool
+	ImageSearch   bool
 }
 
 // EditFormData holds validated data for edit form
@@ -37,7 +40,10 @@ type EditFormData struct {
 	Prompt        string
 	AspectRatio   string
 	ImageSize     string
+	Model         string
+	ThinkingLevel string
 	Grounding     bool
+	ImageSearch   bool
 }
 
 // ValidateRequired checks if a value is not empty
@@ -142,12 +148,15 @@ func ValidateGenerateForm(form *Form) (GenerateFormData, error) {
 	}
 
 	return GenerateFormData{
-		OutputFolder: outputFolder,
-		NumImages:    numImages,
-		Prompt:       prompt,
-		AspectRatio:  form.GetString("aspect"),
-		ImageSize:    form.GetString("size"),
-		Grounding:    form.GetBool("grounding"),
+		OutputFolder:  outputFolder,
+		NumImages:     numImages,
+		Prompt:        prompt,
+		AspectRatio:   form.GetString("aspect"),
+		ImageSize:     form.GetString("size"),
+		Model:         form.GetString("model"),
+		ThinkingLevel: form.GetString("thinking"),
+		Grounding:     form.GetBool("grounding"),
+		ImageSearch:   form.GetBool("imagesearch"),
 	}, nil
 }
 
@@ -184,6 +193,9 @@ func ValidateEditForm(form *Form, defaultPrompt string) (EditFormData, error) {
 		Prompt:        prompt,
 		AspectRatio:   form.GetString("aspect"),
 		ImageSize:     form.GetString("size"),
+		Model:         form.GetString("model"),
+		ThinkingLevel: form.GetString("thinking"),
 		Grounding:     form.GetBool("grounding"),
+		ImageSearch:   form.GetBool("imagesearch"),
 	}, nil
 }

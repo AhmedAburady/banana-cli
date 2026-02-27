@@ -67,17 +67,19 @@ type SelectOption struct {
 
 // FormField represents a single form field
 type FormField struct {
-	Type        FieldType
-	Key         string
-	Label       string
-	Description string
-	Placeholder string
-	Value       string
-	BoolValue   bool
-	Options     []SelectOption
-	Selected    int
-	DirsOnly    bool
-	AllowedExts []string
+	Type           FieldType
+	Key            string
+	Label          string
+	Description    string
+	Placeholder    string
+	Value          string
+	BoolValue      bool
+	Options        []SelectOption
+	Selected       int
+	DirsOnly       bool
+	AllowedExts    []string
+	Hidden         bool
+	InlineWithPrev bool // Render on the same row as the previous visible field
 
 	// Internal components
 	textInput textinput.Model
@@ -210,7 +212,13 @@ func (f *Form) AddPath(key, label, description, placeholder, defaultValue string
 // Init initializes the form
 func (f *Form) Init() tea.Cmd {
 	if len(f.Fields) > 0 {
-		f.focusField(0)
+		// Focus the first visible field
+		idx := 0
+		if f.Fields[0].Hidden {
+			idx = f.nextVisibleField(0)
+		}
+		f.FocusIndex = idx
+		f.focusField(idx)
 	}
 	return textinput.Blink
 }
@@ -250,18 +258,12 @@ func (f *Form) Update(msg tea.Msg) tea.Cmd {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "shift+tab":
-			f.FocusIndex--
-			if f.FocusIndex < 0 {
-				f.FocusIndex = len(f.Fields) - 1
-			}
+			f.FocusIndex = f.prevVisibleField(f.FocusIndex)
 			f.focusField(f.FocusIndex)
 			return textinput.Blink
 
 		case "down":
-			f.FocusIndex++
-			if f.FocusIndex >= len(f.Fields) {
-				f.FocusIndex = 0
-			}
+			f.FocusIndex = f.nextVisibleField(f.FocusIndex)
 			f.focusField(f.FocusIndex)
 			return textinput.Blink
 
@@ -280,11 +282,8 @@ func (f *Form) Update(msg tea.Msg) tea.Cmd {
 					return cmd
 				}
 			}
-			// Move to next field
-			f.FocusIndex++
-			if f.FocusIndex >= len(f.Fields) {
-				f.FocusIndex = 0
-			}
+			// Move to next visible field
+			f.FocusIndex = f.nextVisibleField(f.FocusIndex)
 			f.focusField(f.FocusIndex)
 			return textinput.Blink
 
@@ -300,12 +299,14 @@ func (f *Form) Update(msg tea.Msg) tea.Cmd {
 			}
 
 		case "enter":
-			// Move to next field or submit (even for textarea)
-			f.FocusIndex++
-			if f.FocusIndex >= len(f.Fields) {
+			// Move to next visible field or submit (even for textarea)
+			next := f.nextVisibleField(f.FocusIndex)
+			if next <= f.FocusIndex {
+				// Wrapped around — we've passed the last field, submit
 				f.submitted = true
 				return nil
 			}
+			f.FocusIndex = next
 			f.focusField(f.FocusIndex)
 			return textinput.Blink
 
@@ -387,114 +388,133 @@ func (f *Form) Update(msg tea.Msg) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// renderFieldBlock renders a single field to a string (no trailing newline)
+func (f *Form) renderFieldBlock(idx int) string {
+	field := f.Fields[idx]
+	isFocused := idx == f.FocusIndex
+	var b strings.Builder
+
+	// Label
+	if isFocused {
+		b.WriteString(focusedStyle.Render("▸ " + field.Label))
+	} else {
+		b.WriteString(labelStyle.Render("  " + field.Label))
+	}
+
+	// Description
+	if field.Description != "" {
+		b.WriteString("\n  " + descStyle.Render(field.Description))
+	}
+
+	// Field content
+	switch field.Type {
+	case FieldInput, FieldPath:
+		b.WriteString("\n  " + field.textInput.View())
+
+	case FieldTextArea:
+		taView := field.textArea.View()
+		for _, line := range strings.Split(taView, "\n") {
+			b.WriteString("\n  " + line)
+		}
+
+	case FieldSelect:
+		const maxVisible = 5
+		totalOpts := len(field.Options)
+
+		startIdx := 0
+		endIdx := totalOpts
+		if totalOpts > maxVisible {
+			startIdx = field.Selected - maxVisible/2
+			if startIdx < 0 {
+				startIdx = 0
+			}
+			endIdx = startIdx + maxVisible
+			if endIdx > totalOpts {
+				endIdx = totalOpts
+				startIdx = endIdx - maxVisible
+			}
+		}
+
+		var opts []string
+		if startIdx > 0 {
+			opts = append(opts, descStyle.Render("◀"))
+		}
+		for j := startIdx; j < endIdx; j++ {
+			opt := field.Options[j]
+			if j == field.Selected {
+				style := lipgloss.NewStyle().
+					Background(DraculaPurple).
+					Foreground(DraculaBackground).
+					Bold(true).
+					Padding(0, 1)
+				opts = append(opts, style.Render(opt.Label))
+			} else {
+				style := lipgloss.NewStyle().
+					Background(colorSelection).
+					Foreground(DraculaForeground).
+					Padding(0, 1)
+				opts = append(opts, style.Render(opt.Label))
+			}
+		}
+		if endIdx < totalOpts {
+			opts = append(opts, descStyle.Render("▶"))
+		}
+		b.WriteString("\n  " + strings.Join(opts, " "))
+
+	case FieldToggle:
+		selectedBox := lipgloss.NewStyle().
+			Background(DraculaPurple).
+			Foreground(DraculaBackground).
+			Bold(true).
+			Padding(0, 1)
+		unselectedBox := lipgloss.NewStyle().
+			Background(colorSelection).
+			Foreground(DraculaForeground).
+			Padding(0, 1)
+		var toggle string
+		if field.BoolValue {
+			toggle = selectedBox.Render("ON") + " " + unselectedBox.Render("OFF")
+		} else {
+			toggle = unselectedBox.Render("ON") + " " + selectedBox.Render("OFF")
+		}
+		b.WriteString("\n  " + toggle)
+	}
+
+	return b.String()
+}
+
 // View renders the form
 func (f *Form) View() string {
 	var b strings.Builder
 
+	// Collect visible field indices
+	visible := make([]int, 0, len(f.Fields))
 	for i, field := range f.Fields {
-		isFocused := i == f.FocusIndex
+		if !field.Hidden {
+			visible = append(visible, i)
+		}
+	}
 
-		// Label
-		var label string
-		if isFocused {
-			label = focusedStyle.Render("▸ " + field.Label)
+	colWidth := f.Width / 2
+	colStyle := lipgloss.NewStyle().Width(colWidth)
+
+	vi := 0
+	for vi < len(visible) {
+		idx := visible[vi]
+
+		// Check if next visible field wants to be inline with this one
+		if vi+1 < len(visible) && f.Fields[visible[vi+1]].InlineWithPrev {
+			nextIdx := visible[vi+1]
+			left := colStyle.Render(f.renderFieldBlock(idx))
+			right := colStyle.Render(f.renderFieldBlock(nextIdx))
+			b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, left, right))
+			b.WriteString("\n\n")
+			vi += 2
 		} else {
-			label = labelStyle.Render("  " + field.Label)
+			b.WriteString(f.renderFieldBlock(idx))
+			b.WriteString("\n\n")
+			vi++
 		}
-		b.WriteString(label + "\n")
-
-		// Description
-		if field.Description != "" {
-			b.WriteString("  " + descStyle.Render(field.Description) + "\n")
-		}
-
-		// Field content
-		switch field.Type {
-		case FieldInput, FieldPath:
-			b.WriteString("  " + field.textInput.View() + "\n")
-
-		case FieldTextArea:
-			// Indent all lines of the textarea
-			taView := field.textArea.View()
-			lines := strings.Split(taView, "\n")
-			for _, line := range lines {
-				b.WriteString("  " + line + "\n")
-			}
-
-		case FieldSelect:
-			// Show max 5 items with scroll indicators
-			const maxVisible = 5
-			totalOpts := len(field.Options)
-
-			// Calculate visible window centered on selection
-			startIdx := 0
-			endIdx := totalOpts
-			if totalOpts > maxVisible {
-				// Center the window on the selected item
-				startIdx = field.Selected - maxVisible/2
-				if startIdx < 0 {
-					startIdx = 0
-				}
-				endIdx = startIdx + maxVisible
-				if endIdx > totalOpts {
-					endIdx = totalOpts
-					startIdx = endIdx - maxVisible
-				}
-			}
-
-			var opts []string
-
-			// Left scroll indicator
-			if startIdx > 0 {
-				opts = append(opts, descStyle.Render("◀"))
-			}
-
-			// Visible options
-			for j := startIdx; j < endIdx; j++ {
-				opt := field.Options[j]
-				if j == field.Selected {
-					style := lipgloss.NewStyle().
-						Background(DraculaPurple).
-						Foreground(DraculaBackground).
-						Bold(true).
-						Padding(0, 1)
-					opts = append(opts, style.Render(opt.Label))
-				} else {
-					style := lipgloss.NewStyle().
-						Background(colorSelection).
-						Foreground(DraculaForeground).
-						Padding(0, 1)
-					opts = append(opts, style.Render(opt.Label))
-				}
-			}
-
-			// Right scroll indicator
-			if endIdx < totalOpts {
-				opts = append(opts, descStyle.Render("▶"))
-			}
-
-			b.WriteString("  " + strings.Join(opts, " ") + "\n")
-
-		case FieldToggle:
-			selectedBox := lipgloss.NewStyle().
-				Background(DraculaPurple).
-				Foreground(DraculaBackground).
-				Bold(true).
-				Padding(0, 1)
-			unselectedBox := lipgloss.NewStyle().
-				Background(colorSelection).
-				Foreground(DraculaForeground).
-				Padding(0, 1)
-			var toggle string
-			if field.BoolValue {
-				toggle = selectedBox.Render("ON") + " " + unselectedBox.Render("OFF")
-			} else {
-				toggle = unselectedBox.Render("ON") + " " + selectedBox.Render("OFF")
-			}
-			b.WriteString("  " + toggle + "\n")
-		}
-
-		b.WriteString("\n")
 	}
 
 	// Help text
@@ -537,6 +557,45 @@ func (f *Form) SetError(msg string) {
 // Reset resets the submitted state
 func (f *Form) Reset() {
 	f.submitted = false
+}
+
+// SetFieldHidden sets the hidden state of a field by key
+func (f *Form) SetFieldHidden(key string, hidden bool) {
+	for i := range f.Fields {
+		if f.Fields[i].Key == key {
+			f.Fields[i].Hidden = hidden
+			// If the currently focused field just became hidden, move to next visible
+			if hidden && f.FocusIndex == i {
+				f.FocusIndex = f.nextVisibleField(i)
+				f.focusField(f.FocusIndex)
+			}
+			return
+		}
+	}
+}
+
+// nextVisibleField returns the next visible field index, wrapping around
+func (f *Form) nextVisibleField(from int) int {
+	n := len(f.Fields)
+	for i := 1; i <= n; i++ {
+		idx := (from + i) % n
+		if !f.Fields[idx].Hidden {
+			return idx
+		}
+	}
+	return from // fallback: all hidden (shouldn't happen)
+}
+
+// prevVisibleField returns the previous visible field index, wrapping around
+func (f *Form) prevVisibleField(from int) int {
+	n := len(f.Fields)
+	for i := 1; i <= n; i++ {
+		idx := (from - i + n) % n
+		if !f.Fields[idx].Hidden {
+			return idx
+		}
+	}
+	return from
 }
 
 // computePathSuggestions generates path suggestions
@@ -646,6 +705,22 @@ func ImageSizeOptions() []SelectOption {
 		{Label: "1K", Value: "1K"},
 		{Label: "2K", Value: "2K"},
 		{Label: "4K", Value: "4K"},
+	}
+}
+
+// ModelOptions returns available model options
+func ModelOptions() []SelectOption {
+	return []SelectOption{
+		{Label: "Pro", Value: "pro"},
+		{Label: "Flash", Value: "flash"},
+	}
+}
+
+// ThinkingLevelOptions returns available thinking level options (Flash only)
+func ThinkingLevelOptions() []SelectOption {
+	return []SelectOption{
+		{Label: "Minimal", Value: "minimal"},
+		{Label: "High", Value: "high"},
 	}
 }
 
