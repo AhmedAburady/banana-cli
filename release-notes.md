@@ -1,39 +1,88 @@
+# BANANA CLI v1.1.5
+
+## What's New
+
+### Custom Output Filename (`-f`)
+
+New `-f` flag lets you name your output file instead of getting the default timestamped filename.
+
+```bash
+# Single image — saves as sloth.png
+banana -p "cute sloth" -f sloth.png
+
+# Multiple images — auto-suffixed
+banana -p "cute sloth" -f sloth.png -n 5
+# → sloth_1.png, sloth_2.png, ..., sloth_5.png
+
+# Combine with output folder
+banana -p "cute sloth" -o ~/Documents -f sloth.png
+```
+
+### JPEG Output Support
+
+Specify `.jpg` (or `.jpeg`) in `-f` to get a JPEG file. The API response is automatically re-encoded at quality 95 — fully parallel, no sequential bottleneck.
+
+```bash
+banana -p "cute sloth" -f sloth.jpg
+banana -p "cute sloth" -f sloth.jpg -n 5
+# → sloth_1.jpg, sloth_2.jpg, ...
+```
+
+**Notes:**
+- `-f` and `-r` are mutually exclusive (validation error if both are set)
+- Any extension other than `.jpg`/`.jpeg` falls back to `.png`
+- Works with both Gemini API and Vertex AI (`-vertex`)
+
+---
+
 # BANANA CLI v1.1.4
 
 ## What's New
 
-### TUI Now Matches CLI Features
+### Flash Model & Thinking Config
 
-The interactive TUI now exposes **Model selection**, **Thinking Level**, and **Image Search** — previously only available via CLI flags.
+Switch between **Pro** and **Flash** models. Flash supports configurable thinking levels for faster or deeper reasoning.
 
-- **Model**: Switch between Pro and Flash directly in the form
-- **Thinking Level**: Choose Minimal or High (Flash only)
-- **Image Search**: Enable image search grounding (Flash only)
+```bash
+# Use Flash model
+banana -p "a sunset" -m flash
 
-Thinking Level and Image Search automatically appear when you select Flash, and hide when you switch back to Pro.
-
-### 2-Column Form Layout
-
-Compact fields (selects and toggles) now render side-by-side, cutting vertical space significantly:
-
-```
-Number of Images          Image Size
-> 5                       1K  2K  4K
-
-Model                     Thinking Level
-Pro  Flash                Minimal  High
-
-Google Search             Image Search
-ON  OFF                   ON  OFF
+# Flash with high thinking
+banana -p "a complex scene" -m flash -t high
 ```
 
-### Responsive Terminal Sizing
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-m` | Model: `pro`, `flash` | `pro` |
+| `-t` | Thinking level: `minimal`, `high` (Flash only) | `minimal` |
 
-All views (menu, API key, forms) now adapt to your terminal dimensions instead of using hardcoded sizes. No more cropped content on small terminals or wasted space on large ones.
+### Image Search Grounding
 
-### Cleaner Form UI
+New `-is` flag enables image search grounding — lets the model reference real images during generation. Flash model only.
 
-Removed inline description text from all fields. Hints now live exclusively in input placeholders where they disappear as you type.
+```bash
+banana -p "a cat wearing a supreme hoodie" -m flash -is
+```
+
+### Multiple Reference Images (`-i`)
+
+The `-i` flag is now **repeatable** and supports **shell globs**. Pass multiple reference images without needing a folder.
+
+```bash
+# Multiple explicit references
+banana -i a.png -i b.png -p "merge these styles"
+
+# Shell glob expansion (put -i last)
+banana -p "add rain" -i *.png
+```
+
+### TUI Parity
+
+The interactive TUI now exposes all new CLI features: **Model**, **Thinking Level**, and **Image Search**. Flash-only options appear dynamically when you select the Flash model.
+
+### Responsive 2-Column Layout
+
+TUI forms now use a compact 2-column layout for settings and adapt to your terminal size — no more cropped content or wasted space.
 
 ---
 

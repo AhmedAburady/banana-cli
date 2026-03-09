@@ -46,6 +46,7 @@ func (s *stringSlice) Set(value string) error {
 type Options struct {
 	Prompt           string
 	Output           string
+	OutputFilename   string   // -f flag, custom output filename
 	NumImages        int
 	AspectRatio      string
 	ImageSize        string
@@ -92,6 +93,7 @@ func ParseFlags() (*Options, bool) {
 
 	flag.StringVar(&opts.Prompt, "p", "", "Prompt text (required for CLI mode)")
 	flag.StringVar(&opts.Output, "o", ".", "Output folder")
+	flag.StringVar(&opts.OutputFilename, "f", "", "Output filename (suffixed _N for multiple images, e.g. image.png)")
 	flag.IntVar(&opts.NumImages, "n", 1, "Number of images to generate (1-20)")
 	flag.StringVar(&opts.AspectRatio, "ar", "", "Aspect ratio (default: Auto)")
 	flag.StringVar(&opts.ImageSize, "s", "1K", "Image size: 1K, 2K, 4K")
@@ -196,6 +198,11 @@ func (opts *Options) Validate() error {
 		}
 	}
 
+	// -f and -r are mutually exclusive
+	if opts.OutputFilename != "" && opts.PreserveFilename {
+		return fmt.Errorf("-f and -r are mutually exclusive: use one or the other")
+	}
+
 	// -r requires exactly one -i with a single file (not a folder)
 	if opts.PreserveFilename {
 		if len(opts.RefInputs) == 0 {
@@ -253,6 +260,7 @@ func Run(opts *Options, apiKey string) {
 	// Create config
 	cfg := &api.Config{
 		OutputFolder:     opts.Output,
+		OutputFilename:   opts.OutputFilename,
 		NumImages:        opts.NumImages,
 		Prompt:           opts.Prompt,
 		APIKey:           apiKey,
@@ -342,6 +350,7 @@ Usage:
 Generate/Edit Flags:
   -p string    Prompt text or path to prompt file (required for CLI mode)
   -o string    Output folder (default ".")
+  -f string    Output filename (e.g. image.png); with -n >1, saves as image_1.png, image_2.png, ...
   -n int       Number of images (default 1)
   -ar string   Aspect ratio (default: Auto)
   -s string    Image size: 1K, 2K, 4K (default "1K")
@@ -371,6 +380,8 @@ Config Commands:
 
 Examples:
   banana -p "a sunset over mountains" -n 3
+  banana -p "a sunset" -o ~/Documents -f sunset.png
+  banana -p "a sunset" -o ~/Documents -f sunset.png -n 5  # saves sunset_1.png ... sunset_5.png
   banana -p prompt.txt -n 3                          # load prompt from file
   banana -p "a sunset" -m flash                      # use flash model
   banana -p "a sunset" -m flash -t high              # flash with high thinking

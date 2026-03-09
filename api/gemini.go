@@ -5,6 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/jpeg"
+	_ "image/png" // register PNG decoder for image.Decode
 	"io"
 	"net/http"
 	"os"
@@ -126,6 +129,7 @@ type GenerationResult struct {
 // Config holds the configuration for image generation
 type Config struct {
 	OutputFolder     string
+	OutputFilename   string // Custom output filename (-f flag); suffixed _N for multiple images
 	NumImages        int
 	Prompt           string
 	APIKey           string
@@ -133,7 +137,7 @@ type Config struct {
 	ImageSize        string
 	Grounding        bool
 	RefImages        []Part
-	RefInputPath     string // Original input path for -f flag
+	RefInputPath     string // Original input path for -r flag
 	PreserveFilename bool   // Whether to preserve input filename for output
 	UseVertex        bool   // Use Vertex AI instead of Gemini API
 	Model            string // Full model name (e.g. ModelPro, ModelFlash)
@@ -334,6 +338,19 @@ type GenerationOutput struct {
 	Elapsed      time.Duration
 }
 
+// convertToJPEG decodes image bytes (any format) and re-encodes them as JPEG at quality 95.
+func convertToJPEG(imgData []byte) ([]byte, error) {
+	img, _, err := image.Decode(bytes.NewReader(imgData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode image: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 95}); err != nil {
+		return nil, fmt.Errorf("failed to encode JPEG: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
 // RunGeneration performs parallel image generation and saves results
 func RunGeneration(config *Config) GenerationOutput {
 	startTime := time.Now()
@@ -368,13 +385,25 @@ func RunGeneration(config *Config) GenerationOutput {
 			// Save if successful
 			if result.Error == nil && result.ImageData != nil {
 				var filename string
-				if config.PreserveFilename && config.RefInputPath != "" {
+				if config.OutputFilename != "" {
+					// Honour the user's extension; fall back to .png for anything unsupported
+					rawExt := strings.ToLower(filepath.Ext(config.OutputFilename))
+					stem := strings.TrimSuffix(config.OutputFilename, filepath.Ext(config.OutputFilename))
+					ext := ".png"
+					if rawExt == ".jpg" || rawExt == ".jpeg" {
+						ext = ".jpg"
+					}
+					if config.NumImages > 1 {
+						filename = fmt.Sprintf("%s_%d%s", stem, result.Index+1, ext)
+					} else {
+						filename = stem + ext
+					}
+				} else if config.PreserveFilename && config.RefInputPath != "" {
 					// Use the input filename with .png extension
 					baseName := filepath.Base(config.RefInputPath)
 					ext := filepath.Ext(baseName)
 					nameWithoutExt := strings.TrimSuffix(baseName, ext)
 					if config.NumImages > 1 {
-						// Add index suffix for multiple images
 						filename = fmt.Sprintf("%s_%d.png", nameWithoutExt, result.Index+1)
 					} else {
 						filename = nameWithoutExt + ".png"
@@ -382,8 +411,21 @@ func RunGeneration(config *Config) GenerationOutput {
 				} else {
 					filename = fmt.Sprintf("generated_%d_%s.png", result.Index+1, time.Now().Format("20060102_150405"))
 				}
+
+				// Convert to JPEG inside the goroutine to keep parallelism intact
+				imageData := result.ImageData
+				if ext := strings.ToLower(filepath.Ext(filename)); ext == ".jpg" || ext == ".jpeg" {
+					converted, err := convertToJPEG(imageData)
+					if err != nil {
+						result.Error = fmt.Errorf("failed to convert to JPEG: %v", err)
+						resultsChan <- result
+						return
+					}
+					imageData = converted
+				}
+
 				outputFile := filepath.Join(config.OutputFolder, filename)
-				if err := os.WriteFile(outputFile, result.ImageData, 0644); err != nil {
+				if err := os.WriteFile(outputFile, imageData, 0644); err != nil {
 					result.Error = fmt.Errorf("failed to save: %v", err)
 				} else {
 					result.Filename = filename
